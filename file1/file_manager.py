@@ -4,7 +4,7 @@ import time
 import requests
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Set
+from typing import Dict, List, Optional, Tuple, Set, Union
 from loguru import logger
 import tqdm
 import numpy as np
@@ -12,6 +12,7 @@ import re
 from openai import OpenAI
 
 
+from .base import File1Base
 from .config import File1Config
 from .utils.token_cnt import HumanMessage, count_tokens_approximately
 from .utils.visualization import visualize_graph
@@ -41,41 +42,41 @@ GRAPH_NO_CHILD_FILE_EXT = [
 ]
 
 
-class FileManager:
+class FileManager(File1Base):
     """
     File management tool for detecting duplicate files and simulated data files.
     Uses file summaries to identify potential duplicates and LLM to verify.
     """
 
-    def __init__(self, config: File1Config, analyze_dir: str, summary_cache_path: str = None, backup_path: str = None):
+    def __init__(self, config: Union[File1Config, str, dict, None] = None, analyze_dir: str = None, summary_cache_path: str = None, backup_path: str = None, **kwargs):
         """
         Initialize the file management tool
 
         Args:
-            config: Configuration object
+            config: Configuration object or path to TOML file or TOML string
             analyze_dir: Directory to analyze
             summary_cache_path: Path to summary cache JSON file, default to "file_summary_cache.json" in analyze_dir
             backup_path: Path to backup directory for deleted files, default to "backup" in analyze_dir
         """
-        self.config = config
+        super().__init__(config, **kwargs)
         self.analyze_dir = analyze_dir
         self.backup_path = backup_path or os.path.join(analyze_dir, "backup")
-        self.file_summary = FileSummary(analyze_dir, config, summary_cache_path)
+        self.file_summary = FileSummary(self.config, analyze_dir, summary_cache_path, **kwargs)
         self.file_summary.get_file_tree_with_summaries()
 
         # Initialize the large language model for detailed comparison using OpenAI Python SDK
         self.comparison_llm = OpenAI(
-            api_key=config.llm.chat.api_key,
-            base_url=config.llm.chat.base_url
+            api_key=self.config.llm.chat.api_key,
+            base_url=self.config.llm.chat.base_url
         )
-        self.comparison_model = config.llm.chat.model
+        self.comparison_model = self.config.llm.chat.model
 
         # Initialize the large language model for simulated data detection using OpenAI Python SDK
         self.detection_llm = OpenAI(
-            api_key=config.llm.chat.api_key,
-            base_url=config.llm.chat.base_url
+            api_key=self.config.llm.chat.api_key,
+            base_url=self.config.llm.chat.base_url
         )
-        self.detection_model = config.llm.chat.model
+        self.detection_model = self.config.llm.chat.model
 
         # Track deleted files
         self.deleted_files = []
@@ -588,5 +589,5 @@ if __name__ == "__main__":
     print(f"File relationships: {file_relationships}")
 
     # Print the paths to the saved files
-    print(f"\nGraph saved to: {os.path.join(config.save_path, 'file_relation.png')}")
-    print(f"JSON file saved to: {os.path.join(config.save_path, 'file_relationships.json')}")
+    print(f"\nGraph saved to file_relation.png")
+    print(f"JSON file saved to file_relationships.json")

@@ -35,8 +35,8 @@ def main():
     # Test 1: File Summary Generation
     print("\n=== Test 1: File Summary Generation ===")
     file_summary = FileSummary(
-        analyze_dir=target_dir,
         config=config,
+        analyze_dir=target_dir,
         summary_cache_path=os.path.join(outputs_dir, "file_summary_cache.json")
     )
     

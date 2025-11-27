@@ -33,22 +33,29 @@ pip install -e .[dev]
 
 ## Quick Start
 
-```python
-from file1 import file1
-from file1.config import file1Config
+Run the following commands to set up the testing environment:
 
-# Initialize with default configuration
-config = file1Config()
-file1 = file1(config)
+```bash
+mkdir -p outputs/test_repo
+rm -rf outputs/test_repo/*
+cp -r examples/test_repo outputs/test_repo
+```
+
+```python
+from file1 import FileManager
+import os
+
+
+file1 = FileManager(
+    config="config.toml",
+    analyze_dir="outputs/test_repo"
+)
 
 # Clean repository (remove duplicates and simulated data)
-file1.clean_repository("/path/to/your/project")
+file1.clean_repository()
 
 # Build file relationship graph
-graph = file1.build_graph("/path/to/your/project")
-
-# Visualize the graph
-file1.visualize_graph(graph, save_path="file_relationship.png")
+graph = file1.build_graph()
 ```
 
 ## Configuration
@@ -56,168 +63,23 @@ file1.visualize_graph(graph, save_path="file_relationship.png")
 file1 uses a TOML configuration file to specify model settings and other parameters:
 
 ```toml
-[model]
-name = "gpt-4o-mini"
-base_url = "https://api.openai.com/v1"
-api_key = "your-api-key"
+[llm]
+language = "chs"  # Language setting: "chs" for Chinese, "eng" for English
 
-[llm.chat]
-model = "gpt-4o-mini"
-base_url = "https://api.openai.com/v1"
-api_key = "your-api-key"
+[llm.chat] # Main language model used for general tasks and coding
+model = "glm-4.5-air"  # The main language model used for general tasks
+base_url = "https://cloud.infini-ai.com/maas/v1/"  # Base URL for the model API service
+api_key = "<YOUR API KEY>"  # API key for accessing the language models
 
 [llm.vision]
-model = "gpt-4o-mini"
-base_url = "https://api.openai.com/v1"
-api_key = "your-api-key"
+model = "glm-4.1v-9b-thinking"  # The vision model used for image analysis tasks
+base_url = "https://open.bigmodel.cn/api/paas/v4/"  # Base URL for the vision model API service
+api_key = "<YOUR API KEY>"  # API key for accessing the vision model
 
-[reranker]
-model = "bge-reranker-v2-m3"
-base_url = "https://api.bge-m3.com/v1"
-api_key = "your-reranker-api-key"
-
-[save_path]
-path = "/path/to/save/directory"
-```
-
-## API Reference
-
-### file1
-
-The main class for file analysis and management.
-
-#### Methods
-
-- `clean_repository(directory)`: Remove duplicate files and simulated data
-- `build_graph(directory)`: Build a file relationship graph
-- `visualize_graph(graph, save_path)`: Visualize the file relationship graph
-
-### FileSummary
-
-A class for generating file and directory summaries.
-
-#### Methods
-
-- `summarize_file(file_path)`: Generate a summary for a single file
-- `summarize_directory(directory_path)`: Generate a summary for a directory
-- `get_file_tree_with_summaries(directory_path)`: Get a file tree with summaries
-
-### FileManager
-
-A class for managing files, detecting duplicates, and building relationships.
-
-#### Methods
-
-- `detect_file_duplication(file1, file2)`: Check if two files are duplicates
-- `detect_simulated_data(file_path)`: Check if a file contains simulated data
-- `find_duplicates_with_reranker(files)`: Find duplicates using reranking
-
-## Examples
-
-### Basic Usage
-
-```python
-from file1 import file1
-from file1.config import file1Config
-
-# Initialize with configuration
-config = file1Config.from_file("config.toml")
-file1 = file1(config)
-
-# Analyze a directory
-summary = file1.summarize_directory("/path/to/project")
-print(summary)
-```
-
-### Quick Test Example
-
-```python
-#!/usr/bin/env python3
-import os
-import sys
-import shutil
-
-# Add the parent directory to the path to import the file1 module
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
-from file1.config import file1Config
-from file1.file_manager import FileManager
-
-def main():
-    # Define paths
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    test_repo_dir = os.path.join(current_dir, "test_repo")
-    outputs_dir = os.path.join(current_dir, "outputs")
-    config_path = os.path.join(current_dir, "..", "config.toml")
-    
-    # Create outputs directory if it doesn't exist
-    os.makedirs(outputs_dir, exist_ok=True)
-    
-    # Copy test_repo to outputs
-    target_dir = os.path.join(outputs_dir, "test_repo")
-    if os.path.exists(target_dir):
-        shutil.rmtree(target_dir)
-    shutil.copytree(test_repo_dir, target_dir)
-    print(f"Copied test_repo to {target_dir}")
-    
-    # Load configuration
-    config = file1Config.from_toml(config_path)
-    print(f"Loaded configuration from {config_path}")
-    
-    # Initialize file manager
-    file_manager = FileManager(
-        config=config,
-        analyze_dir=target_dir,
-        summary_cache_path=os.path.join(outputs_dir, "file_summary_cache.json"),
-        backup_path=os.path.join(outputs_dir, "backup")
-    )
-    
-    # Clean the repository (remove duplicates and simulated data)
-    deleted_files = file_manager.clean_repository()
-    print(f"Repository cleaning completed. Deleted {len(deleted_files)} files")
-    
-    # Print details about deleted files
-    for file_info in deleted_files:
-        print(f"Deleted: {os.path.relpath(file_info['path'], target_dir)} - Reason: {file_info['reason']}")
-    
-    # Build file relationship graph
-    file_manager.build_graph()
-    print("File relationship graph built successfully")
-
-if __name__ == "__main__":
-    main()
-```
-
-### Custom Configuration
-
-```python
-from file1.config import ModelConfig, LLMConfig, RerankConfig, file1Config
-
-# Create custom configuration
-model_config = ModelConfig(
-    name="gpt-4o",
-    base_url="https://api.openai.com/v1",
-    api_key="your-api-key"
-)
-
-llm_config = LLMConfig(
-    chat=model_config,
-    vision=model_config
-)
-
-rerank_config = RerankConfig(
-    model="bge-reranker-v2-m3",
-    base_url="https://api.bge-m3.com/v1",
-    api_key="your-reranker-api-key"
-)
-
-config = file1Config(
-    llm=llm_config,
-    reranker=rerank_config,
-    save_path="/path/to/save/directory"
-)
-
-file1 = file1(config)
+[rerank]
+rerank_model = "bge-reranker-v2-m3"  # The reranking model used to improve search result relevance
+rerank_api_key = "<YOUR API KEY>" # API key for accessing the reranking model (infiniai service)
+rerank_base_url = "https://cloud.infini-ai.com/maas/v1/"  # Base URL for the reranking model API service
 ```
 
 ## License

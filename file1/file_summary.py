@@ -4,11 +4,11 @@ import time
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 from loguru import logger
 from openai import OpenAI
 
-
+from .base import File1Base
 from .config import File1Config
 from .utils.token_cnt import HumanMessage, count_tokens_approximately
 from .utils.vision import get_fig_base64
@@ -16,12 +16,12 @@ from .vision import OpenAIVLM
 # Removed import of perform_rerank as we now use APIReranker directly
 
 
-class FileSummary:
+class FileSummary(File1Base):
     """
     File inspection and summarization tool for checking file modification times and generating file trees with one-sentence summaries for each file.
     """
     
-    def __init__(self, analyze_dir: str, config: File1Config, summary_cache_path: str = None):
+    def __init__(self, config: Union[File1Config, str, dict, None] = None, analyze_dir: str = None, summary_cache_path: str = None, **kwargs):
         """
         Initialize the file inspection and summarization tool
         
@@ -30,7 +30,7 @@ class FileSummary:
             config: Configuration object
             summary_cache_path: Path to summary cache JSON file, default to "file_summary_cache.json" in analyze_dir
         """
-        self.config = config
+        super().__init__(config, **kwargs)
         self.analyze_dir = analyze_dir
             
         self.summary_cache_path = summary_cache_path or os.path.join(self.analyze_dir, "file_summary_cache.json")
@@ -38,10 +38,10 @@ class FileSummary:
         
         # Initialize the large language model using OpenAI Python SDK
         self.concluder_llm = OpenAI(
-            api_key=config.llm.chat.api_key,
-            base_url=config.llm.chat.base_url
+            api_key=self.config.llm.chat.api_key,
+            base_url=self.config.llm.chat.base_url
         )
-        self.concluder_model = config.llm.chat.model
+        self.concluder_model = self.config.llm.chat.model
     
     def _load_cache(self) -> Dict:
         """
