@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 
-# Check if data file exists
+# Check if data file exists 
 if not os.path.exists('data.csv'):
     print("Error: data.csv file does not exist. Please run simulate_data.py first to generate data.")
     exit(1)

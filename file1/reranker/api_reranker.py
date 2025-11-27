@@ -144,7 +144,7 @@ class APIReranker(BaseReranker):
         
         return all_str
     
-    def rererank_to_limitrank(self, documents: List[str], query: str, token_limit: int) -> List[str]:
+    def rerank_to_limit(self, documents: List[str], query: str, token_limit: int) -> List[str]:
         """
         Rerank documents based on their relevance to the query.
         
@@ -187,14 +187,13 @@ class APIReranker(BaseReranker):
         # Filter by token limit
         return self._filter_by_token_limit(sorted_documents, sorted_scores, token_limit)
     
-    def rerank_with_scores(self, documents: List[str], query: str, token_limit: int) -> tuple[List[str], List[float]]:
+    def rerank_with_scores(self, documents: List[str], query: str) -> tuple[List[str], List[float]]:
         """
         Rerank documents based on their relevance to the query and return both documents and scores.
         
         Args:
             documents: List of document strings to rerank
             query: Query string for relevance scoring
-            token_limit: Maximum number of tokens to include in the result
             
         Returns:
             Tuple of (reranked document texts, relevance scores) within the token limit
@@ -227,21 +226,7 @@ class APIReranker(BaseReranker):
             f"All rerank scores max: {max(sorted_scores):.3f}, min: {min(sorted_scores):.3f}, avg: {sum(sorted_scores) / len(sorted_scores):.3f}"
         )
         
-        # Filter by token limit and keep track of original indices
-        filtered_documents = []
-        filtered_scores = []
-        current_token_cnt = 0
-        
-        for doc, score in zip(sorted_documents, sorted_scores):
-            # 直接使用字符串内容计算token数量
-            msg_token_cnt = count_tokens_approximately([doc])
-            if current_token_cnt + msg_token_cnt > token_limit:
-                break
-            filtered_documents.append(doc)
-            filtered_scores.append(score)
-            current_token_cnt += msg_token_cnt
-        
-        return filtered_documents, filtered_scores
+        return sorted_documents, sorted_scores
 
 
 # Backward compatibility function

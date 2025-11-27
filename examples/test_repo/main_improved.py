@@ -4,7 +4,7 @@ import os
 from scipy import stats
 
 def load_data(file_path='data.csv'):
-    """Load data file"""
+    """Load data file   """
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Error: {file_path} file does not exist. Please run simulate_data.py first to generate data.")
     return np.loadtxt(file_path, delimiter=',')

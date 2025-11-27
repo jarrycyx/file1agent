@@ -195,7 +195,7 @@ Result: Yes
 
             # Build detection prompt
             prompt = f"""
-Please analyze the following file and determine if it contains simulated, fake, or mock data.
+Please analyze the following file and determine if it contains simulated, fake, or mock data itself. Please only inspect this file content and do not infer from the file name or other files.
 
 File: {file_name}
 Path: {file_path}
@@ -218,7 +218,7 @@ Result: Yes
             )
             result = response.choices[0].message.content.strip().upper()
 
-            logger.debug(f"Simulated data detection result for {file_name}: {result}")
+            logger.info(f"Simulated data detection result for {file_name}: {result.replace('\n', ' ')}")
 
             return ("Yes" in result) or ("YES" in result)
         except Exception as e:
@@ -301,7 +301,7 @@ Result: Yes
         for i, file_path in enumerate(file_paths):
             confirmed_duplicates = []
 
-            if not (os.path.abspath(os.path.join(self.analyze_dir, "workspace")) in os.path.abspath(file_path)):
+            if not (os.path.abspath(os.path.join(self.analyze_dir)) in os.path.abspath(file_path)):
                 continue
 
             if not os.path.exists(file_path):
@@ -351,7 +351,9 @@ Result: Yes
 
             try:
                 # Call rerank_with_scores method to get both reranked documents and scores
-                reranked_docs, rerank_scores = reranker.rerank_with_scores(other_summaries, query, len(other_summaries))
+                reranked_docs, rerank_scores = reranker.rerank_with_scores(other_summaries, query)
+                
+                print(reranked_docs, rerank_scores, other_summaries)
 
                 # Create results structure with original indices and scores
                 results = []

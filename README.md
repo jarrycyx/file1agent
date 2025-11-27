@@ -37,8 +37,8 @@ Run the following commands to set up the testing environment:
 
 ```bash
 mkdir -p outputs/test_repo
-rm -rf outputs/test_repo/*
-cp -r examples/test_repo outputs/test_repo
+rm -rf outputs/test_repo
+cp -r examples/test_repo outputs/
 ```
 
 ```python
@@ -53,9 +53,6 @@ file1 = FileManager(
 
 # Clean repository (remove duplicates and simulated data)
 file1.clean_repository()
-
-# Build file relationship graph
-graph = file1.build_graph()
 ```
 
 ## Configuration

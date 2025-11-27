@@ -9,6 +9,3 @@ file1 = FileManager(
 
 # Clean repository (remove duplicates and simulated data)
 file1.clean_repository()
-
-# Build file relationship graph
-graph = file1.build_graph()
