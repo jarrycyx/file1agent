@@ -328,7 +328,7 @@ class FileSummary:
         self._save_cache()
         
         # Build result string
-        result = [f"File tree: {self.self.analyze_dir}"]
+        result = [f"File tree: {self.analyze_dir}"]
         result.extend(file_tree)
         result.append("\nFile summaries:")
         

@@ -1,5 +1,6 @@
 import os
 import graphviz
+from loguru import logger
 from typing import Dict, List, Optional, Tuple, Set
 
 try:
@@ -10,7 +11,7 @@ except ImportError:
     GRAPHVIZ_AVAILABLE = False
     logger.warning("graphviz not installed. Cannot visualize graph.")
 
-def visualize_graph(file_relationships: Dict[str, List[str]], all_files: List[str]) -> None:
+def visualize_graph(file_relationships: Dict[str, List[str]], all_files: List[str], save_fig_path: str) -> None:
     """
     Visualize the file relationship graph using graphviz
 
@@ -54,7 +55,6 @@ def visualize_graph(file_relationships: Dict[str, List[str]], all_files: List[st
             dot.edge(file_path, ref_file)
 
     # Save the graph
-    output_path = os.path.join(self.analyze_dir, "file_relation")
-    dot.render(output_path, format="png", cleanup=True)
+    dot.render(save_fig_path, format="png", cleanup=True)
 
-    logger.info(f"File relationship graph saved to {output_path}.png")
+    logger.info(f"File relationship graph saved to {save_fig_path}.png")

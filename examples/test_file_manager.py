@@ -15,7 +15,7 @@ def main():
     # Define paths
     current_dir = os.path.dirname(os.path.abspath(__file__))
     test_repo_dir = os.path.join(current_dir, "test_repo")
-    outputs_dir = os.path.join(current_dir, "outputs")
+    outputs_dir = os.path.join(current_dir, "..", "outputs")
     config_path = os.path.join(current_dir, "..", "config.toml")
     
     # Create outputs directory if it doesn't exist
@@ -41,11 +41,15 @@ def main():
     )
     
     # Get file tree with summaries
-    file_tree = file_summary.get_file_tree_with_summaries()
-    print(f"Generated summaries for {len(file_tree)} files")
+    file_tree_str = file_summary.get_file_tree_with_summaries()
+    print(f"Generated file tree with summaries")
     
-    # Print summaries for each file
-    for file_path, file_info in file_tree.items():
+    # Print file tree with summaries
+    print(file_tree_str)
+    
+    # Print summaries for each file from cache
+    print(f"\nFile summaries from cache:")
+    for file_path, file_info in file_summary.file_cache.items():
         print(f"\nFile: {os.path.relpath(file_path, target_dir)}")
         print(f"Summary: {file_info['summary'][:200]}..." if len(file_info['summary']) > 200 else f"Summary: {file_info['summary']}")
     
@@ -62,9 +66,19 @@ def main():
     summaries = file_manager._get_file_summaries()
     print(f"Found {len(summaries)} files to analyze for duplicates")
     
-    # Find duplicates
+    # Find duplicate files
     duplicates = file_manager._find_duplicates_with_reranker(summaries)
-    print(f"Found {len(duplicates)} duplicate pairs")
+    if duplicates is None:
+        print("No duplicate files found or error occurred during duplicate detection")
+    else:
+        print(f"Found {len(duplicates)} duplicate pairs")
+        
+        # Print duplicate pairs
+        for pair in duplicates:
+            print(f"\nDuplicate pair:")
+            print(f"  File 1: {os.path.relpath(pair[0], target_dir)}")
+            print(f"  File 2: {os.path.relpath(pair[1], target_dir)}")
+            print(f"  Similarity: {pair[2]:.2f}")
     
     # Test 3: Simulated Data Detection
     print("\n=== Test 3: Simulated Data Detection ===")
@@ -114,6 +128,10 @@ def main():
     print(f"\nRemaining files after cleaning: {len(remaining_files)}")
     for file in remaining_files:
         print(f"  - {file}")
+    
+    print("\n=== Test 5: File Graph Building ===")
+    file_manager_clean.build_graph()
+    
     
     print("\n=== All Tests Completed ===")
 

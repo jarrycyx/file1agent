@@ -492,20 +492,20 @@ Result: Yes
             # Skip non-existent files
             if not os.path.exists(file_path):
                 continue
-
             # Get file extension
             _, ext = os.path.splitext(file_path)
 
             if ext.lower() in GRAPH_IGNORE_FILE_EXT:
                 continue
-
-            # Check if this is a binary file
+            # Check if this is a result file
             is_no_child = ext.lower() in GRAPH_NO_CHILD_FILE_EXT
 
             # Skip binary files for content scanning (they can't reference others)
             if is_no_child:
                 continue
 
+            logger.debug(f"Finding children files for: {file_path}")
+            
             # Read file content
             content = self._read_file_content(file_path)
 
@@ -532,6 +532,7 @@ Result: Yes
                 elif re.search(r"\b" + re.escape(other_basename) + r"\b", content):
                     referenced_files.append(os.path.relpath(other_file_path, self.analyze_dir))
 
+            logger.debug(f"Found references to: {referenced_files}")
             # Store the relationships
             if referenced_files:
                 file_relationships[os.path.relpath(file_path, self.analyze_dir)] = referenced_files
@@ -540,7 +541,7 @@ Result: Yes
         self._save_relationships_to_json(file_relationships)
 
         # Create and save the graph visualization
-        visualize_graph(file_relationships, all_files)
+        visualize_graph(file_relationships, all_files, save_fig_path=os.path.join(self.analyze_dir, "file_relation"))
 
         logger.info(f"Built file relationship graph with {len(file_relationships)} nodes")
         return file_relationships

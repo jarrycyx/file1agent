@@ -142,7 +142,7 @@ class OpenAIVLM(BaseVLM):
                     # Save the conversation for debugging
                     self._save_llm_call([message, response])
                     
-                    logger.info(f"Vision response: {response}")
+                    logger.info(f"Vision response: {response.replace('\n', ' ')}")
                     return response
                 except Exception as e:
                     error_msg = f"Error when calling VLM: {e}"
