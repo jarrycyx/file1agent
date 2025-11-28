@@ -1,3 +1,5 @@
+**[English Version](README.md)**
+
 <h1 align="center">👕 file1.agent: AI智能体的文件管理工具</h1>
 
 ![file1.agent](fig.png)

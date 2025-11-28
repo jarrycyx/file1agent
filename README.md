@@ -1,3 +1,5 @@
+**[English Version](README.md)**
+
 <h1 align="center">👕 file1.agent: file management layer for AI agents</h1>
 
 
