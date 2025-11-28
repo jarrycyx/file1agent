@@ -6,15 +6,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Set, Union
 
-from .config import File1Config
+from .config import File1AgentConfig
 
-class File1Base:
+class File1AgentBase:
     """
     File management tool for detecting duplicate files and simulated data files.
     Uses file summaries to identify potential duplicates and LLM to verify.
     """
 
-    def __init__(self, config: Union[File1Config, str, dict, None] = None, **kwargs):
+    def __init__(self, config: Union[File1AgentConfig, str, dict, None] = None, **kwargs):
         """
         Initialize the file management tool
 
@@ -23,12 +23,12 @@ class File1Base:
         """
         if isinstance(config, str):
             if os.path.isfile(config):
-                self.config = File1Config.from_toml(config)
+                self.config = File1AgentConfig.from_toml(config)
             else:
-                self.config = File1Config.from_toml_str(config)
+                self.config = File1AgentConfig.from_toml_str(config)
         elif isinstance(config, dict):
-            self.config = File1Config.from_dict(config)
+            self.config = File1AgentConfig.from_dict(config)
         elif config is None:
-            self.config = File1Config.from_args(**kwargs)
+            self.config = File1AgentConfig.from_args(**kwargs)
         else:
             self.config = config

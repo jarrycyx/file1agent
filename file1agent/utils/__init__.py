@@ -1,5 +1,5 @@
 """
-Utils module for File1.
+Utils module for File1Agent.
 """
 
 from .token_cnt import count_tokens_approximately as count_tokens

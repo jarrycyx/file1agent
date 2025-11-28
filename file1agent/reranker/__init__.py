@@ -1,5 +1,5 @@
 """
-Reranker module for File1.
+Reranker module for File1Agent.
 """
 
 from .base_reranker import BaseReranker

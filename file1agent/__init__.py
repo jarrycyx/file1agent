@@ -1,8 +1,8 @@
 """
-File1: A Python package for file analysis, summarization, and relationship visualization.
+File1Agent: A Python package for file analysis, summarization, and relationship visualization.
 """
 
-from .config import File1Config, ModelConfig, LLMConfig, RerankConfig
+from .config import File1AgentConfig, ModelConfig, LLMConfig, RerankConfig
 from .file_manager import FileManager
 from .file_summary import FileSummary
 
@@ -19,8 +19,8 @@ logger.add(
 )
 
 __all__ = [
-    "File1",
-    "File1Config",
+    "File1Agent",
+    "File1AgentConfig",
     "ModelConfig",
     "LLMConfig",
     "RerankConfig",

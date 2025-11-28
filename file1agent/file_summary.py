@@ -8,20 +8,20 @@ from typing import Dict, List, Optional, Tuple, Union
 from loguru import logger
 from openai import OpenAI
 
-from .base import File1Base
-from .config import File1Config
+from .base import File1AgentBase
+from .config import File1AgentConfig
 from .utils.token_cnt import HumanMessage, count_tokens_approximately
 from .utils.vision import get_fig_base64
 from .vision import OpenAIVLM
 # Removed import of perform_rerank as we now use APIReranker directly
 
 
-class FileSummary(File1Base):
+class FileSummary(File1AgentBase):
     """
     File inspection and summarization tool for checking file modification times and generating file trees with one-sentence summaries for each file.
     """
     
-    def __init__(self, config: Union[File1Config, str, dict, None] = None, analyze_dir: str = None, summary_cache_path: str = None, **kwargs):
+    def __init__(self, config: Union[File1AgentConfig, str, dict, None] = None, analyze_dir: str = None, summary_cache_path: str = None, **kwargs):
         """
         Initialize the file inspection and summarization tool
         
@@ -371,7 +371,7 @@ class FileSummary(File1Base):
 
 # Example usage
 if __name__ == "__main__":
-    from .config import File1Config
+    from .config import File1AgentConfig
     from ..state import load_state
     
     config, state, last_subgraph = load_state("../outputs/pred_aki_trend_eicu_demo")

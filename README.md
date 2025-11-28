@@ -1,8 +1,8 @@
-<h1 align="center">👕 file1</h1>
+<h1 align="center">👕 file1.agent</h1>
 
-<h2 align="center"> Tired of main_fixed.py? file1 cleans up the mess from AI agents.</h2>
+<h2 align="center"> Tired of main_fixed.py? file1.agent cleans up the mess from AI agents.</h2>
 
-Tired of navigating through endless main_fixed.py and file_improved.py files? file1 revolutionizes your file management by eliminating AI-generated code clutter. Our advanced detection algorithms precisely **identify and remove duplicate files and mock data**, while our powerful graph visualization reveals complex file relationships at a glance. With vision model integration for comprehensive content analysis across text, images, and PDFs, file1 provides AI agents with complete file context.
+Tired of navigating through endless main_fixed.py and file_improved.py files? file1.agent revolutionizes your file management by eliminating AI-generated code clutter. Our advanced detection algorithms precisely **identify and remove duplicate files and mock data**, while our powerful graph visualization reveals complex file relationships at a glance. With vision model integration for comprehensive content analysis across text, images, and PDFs, file1.agent provides AI agents with complete file context.
 
 Even better, the file relationship graph and automatically generated file summaries can **serve directly as agent memory**, giving your AI agents persistent, structured awareness of your entire workspace.
 
@@ -17,17 +17,17 @@ Even better, the file relationship graph and automatically generated file summar
 
 ## Installation
 
-You can install file1 using pip:
+You can install file1.agent using pip:
 
 ```bash
-pip install file1
+pip install file1-agent
 ```
 
 For development:
 
 ```bash
-git clone https://github.com/file1/file1.git
-cd file1
+git clone https://github.com/file1/file1-agent.git
+cd file1-agent
 pip install -e .[dev]
 ```
 
@@ -42,7 +42,7 @@ cp -r examples/test_repo outputs/
 ```
 
 ```python
-from file1 import FileManager
+from file1agent import FileManager
 import os
 
 
@@ -89,4 +89,4 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 
 ## Support
 
-If you have any questions or issues, please open an issue on [GitHub Issues](https://github.com/file1/file1/issues).
+If you have any questions or issues, please open an issue on [GitHub Issues](https://github.com/jarrycyx/file1-agent/issues).

@@ -5,7 +5,7 @@ Vision utilities for file processing.
 import os
 import glob
 from loguru import logger
-from ..config import File1Config
+from ..config import File1AgentConfig
 from .pdf_converter import PDFConverter
 
 

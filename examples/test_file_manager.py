@@ -7,9 +7,9 @@ from pathlib import Path
 # Add the parent directory to the path to import the file1 module
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from file1.config import File1Config
-from file1.file_manager import FileManager
-from file1.file_summary import FileSummary
+from file1agent.config import File1AgentConfig
+from file1agent.file_manager import FileManager
+from file1agent.file_summary import FileSummary
 
 def main():
     # Define paths
@@ -29,7 +29,7 @@ def main():
     print(f"Copied test_repo to {target_dir}")
     
     # Load configuration
-    config = File1Config.from_toml(config_path)
+    config = File1AgentConfig.from_toml(config_path)
     print(f"Loaded configuration from {config_path}")
     
     # Test 1: File Summary Generation

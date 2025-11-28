@@ -12,8 +12,8 @@ import re
 from openai import OpenAI
 
 
-from .base import File1Base
-from .config import File1Config
+from .base import File1AgentBase
+from .config import File1AgentConfig
 from .utils.token_cnt import HumanMessage, count_tokens_approximately
 from .utils.visualization import visualize_graph
 from .file_summary import FileSummary
@@ -42,13 +42,13 @@ GRAPH_NO_CHILD_FILE_EXT = [
 ]
 
 
-class FileManager(File1Base):
+class FileManager(File1AgentBase):
     """
     File management tool for detecting duplicate files and simulated data files.
     Uses file summaries to identify potential duplicates and LLM to verify.
     """
 
-    def __init__(self, config: Union[File1Config, str, dict, None] = None, analyze_dir: str = None, summary_cache_path: str = None, backup_path: str = None, **kwargs):
+    def __init__(self, config: Union[File1AgentConfig, str, dict, None] = None, analyze_dir: str = None, summary_cache_path: str = None, backup_path: str = None, **kwargs):
         """
         Initialize the file management tool
 
@@ -574,7 +574,7 @@ Result: Yes
 # Example usage
 if __name__ == "__main__":
 
-    config = File1Config.from_toml("outputs/pred_aki_trend_eicu_demo/config.toml")
+    config = File1AgentConfig.from_toml("outputs/pred_aki_trend_eicu_demo/config.toml")
 
     # Create file manager
     file_manager = FileManager(config, 

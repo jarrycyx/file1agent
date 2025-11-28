@@ -32,9 +32,9 @@ class RerankConfig(BaseModel):
     )
 
 
-class File1Config(BaseModel):
+class File1AgentConfig(BaseModel):
     """
-    Configuration model for File1 agent file management.
+    Configuration model for File1Agent agent file management.
     This model represents the configuration structure used for file management operations.
     """
 
@@ -54,7 +54,7 @@ class File1Config(BaseModel):
         rerank_model: str,
         rerank_api_key: str,
         rerank_base_url: str,
-    ) -> "File1Config":
+    ) -> "File1AgentConfig":
         """Load configuration from command line arguments"""
         config_dict = {
             "llm": {
@@ -78,7 +78,7 @@ class File1Config(BaseModel):
         return cls.from_dict(config_dict)
 
     @classmethod
-    def from_toml_str(cls, toml_str: str) -> "File1Config":
+    def from_toml_str(cls, toml_str: str) -> "File1AgentConfig":
         """Load configuration from a TOML file"""
         config_data = toml.loads(toml_str)
 
@@ -88,7 +88,7 @@ class File1Config(BaseModel):
         return config
 
     @classmethod
-    def from_dict(cls, config_dict: dict) -> "File1Config":
+    def from_dict(cls, config_dict: dict) -> "File1AgentConfig":
         """Load configuration from a dictionary"""
         # Create config instance with default sub-configs
         config = cls(**config_dict)
@@ -96,7 +96,7 @@ class File1Config(BaseModel):
         return config
 
     @classmethod
-    def from_toml(cls, toml_path: str) -> "File1Config":
+    def from_toml(cls, toml_path: str) -> "File1AgentConfig":
         """Load configuration from a TOML file"""
         with open(toml_path, "r") as file:
             config_data = toml.load(file)

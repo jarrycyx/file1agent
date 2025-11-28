@@ -9,7 +9,7 @@ import json
 from datetime import datetime
 from loguru import logger
 
-from ..config import File1Config, ModelConfig
+from ..config import File1AgentConfig, ModelConfig
 
 
 class BaseVLM(ABC):
@@ -22,7 +22,7 @@ class BaseVLM(ABC):
         Initialize the VLM with configuration.
         
         Args:
-            config: File1Configuration object
+            config: File1AgentConfiguration object
         """
         self.config = config
         self.model = config.model

@@ -1,11 +1,11 @@
-<h1 align="center">👕 file1</h1>
+<h1 align="center">👕 file1.agent</h1>
 
-<h2 align="center">  告别main_fixed.py：用file1清理AI智能体留下的烂摊子</h2>
+<h2 align="center">  告别main_fixed.py：用file1.agent清理AI智能体留下的烂摊子</h2>
 
 还在被满屏的 main_fixed.py、file_improved.py 搞得头大吗？
-file1 帮你从根源上解决 AI agent 代码越写越乱的问题。它能智能**识别并清理重复文件、临时文件和各种伪造数据**，让你的项目目录一下子清爽起来。file1 还会自动构建文件关系图，把文件、数据和图片的关系直观呈现出来，复杂项目也能一眼看懂。
+file1.agent 帮你从根源上解决 AI agent 代码越写越乱的问题。它能智能**识别并清理重复文件、临时文件和各种伪造数据**，让你的项目目录一下子清爽起来。file1.agent 还会自动构建文件关系图，把文件、数据和图片的关系直观呈现出来，复杂项目也能一眼看懂。
 
-借助对文本、图像、PDF 等多模态内容的分析能力，file1 可以真正理解你整个工作区的上下文。而 file1 自动生成的文件关系图和文件摘要，还能直接**作为 agent 的长期记忆**（agent memory），让 AI agent 对你的项目保持持续、结构化的理解。
+借助对文本、图像、PDF 等多模态内容的分析能力，file1.agent 可以真正理解你整个工作区的上下文。而 file1.agent 自动生成的文件关系图和文件摘要，还能直接**作为 agent 的长期记忆**（agent memory），让 AI agent 对你的项目保持持续、结构化的理解。
 
 ## 功能特性
 
