@@ -13,7 +13,7 @@ logger.remove()
 logger.add(
     sys.stdout,
     format="<green>{time:YYYYMMDDHHmmss}</green>|<level>{level}</level>|{message}|<yellow>{file}:{line}</yellow>|"
-    + f"<cyan>file1</cyan>",
+    + f"<cyan>file1.agent</cyan>",
     colorize=True,
     level="INFO",
 )
