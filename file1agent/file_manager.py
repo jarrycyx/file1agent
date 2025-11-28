@@ -11,16 +11,22 @@ import numpy as np
 import re
 from openai import OpenAI
 
+from loguru import logger
 
-from .base import File1AgentBase
+from .utils.base import File1AgentBase
 from .config import File1AgentConfig
 from .utils.token_cnt import HumanMessage, count_tokens_approximately
 from .utils.visualization import visualize_graph
-from .file_summary import FileSummary
+from .utils.file_summary import FileSummary
 
+from .reranker.api_reranker import APIReranker
+
+IGNORE_DIRS = [".git", "__pycache__", ".pytest_cache", "node_modules", ".vscode", ".idea", ".f1a_cache"]
+IGNORE_FILES = [".DS_Store", "Thumbs.db"]
+CODE_EXTENSIONS = {".py", ".sh", ".c", ".cpp", ".r"}
 
 # Define file extensions to ignore for file relation analysis
-GRAPH_IGNORE_FILE_EXT = [".md"]
+IGNORE_FILE_EXT = [".md"]
 
 # These following can only be the child of other files and cannot have children themselves, because these are probably the results of code execution
 GRAPH_NO_CHILD_FILE_EXT = [
@@ -38,7 +44,7 @@ GRAPH_NO_CHILD_FILE_EXT = [
     ".csv",
     ".xlsx",
     ".log",
-    ".txt"
+    ".txt",
 ]
 
 
@@ -48,7 +54,16 @@ class FileManager(File1AgentBase):
     Uses file summaries to identify potential duplicates and LLM to verify.
     """
 
-    def __init__(self, config: Union[File1AgentConfig, str, dict, None] = None, analyze_dir: str = None, summary_cache_path: str = None, backup_path: str = None, **kwargs):
+    def __init__(
+        self,
+        config: Union[File1AgentConfig, str, dict, None] = None,
+        analyze_dir: str = None,
+        summary_cache_path: str = None,
+        file_relationships_save_path: str = None,
+        backup_path: str = None,
+        log_level: str = "WARNING",
+        **kwargs,
+    ):
         """
         Initialize the file management tool
 
@@ -56,26 +71,24 @@ class FileManager(File1AgentBase):
             config: Configuration object or path to TOML file or TOML string
             analyze_dir: Directory to analyze
             summary_cache_path: Path to summary cache JSON file, default to "file_summary_cache.json" in analyze_dir
-            backup_path: Path to backup directory for deleted files, default to "backup" in analyze_dir
+            backup_path: Path to backup directory for deleted files, default to ".f1a_cache/backup" in analyze_dir
         """
-        super().__init__(config, **kwargs)
+        super().__init__(config, log_level=log_level, **kwargs)
+
         self.analyze_dir = analyze_dir
-        self.backup_path = backup_path or os.path.join(analyze_dir, "backup")
-        self.file_summary = FileSummary(self.config, analyze_dir, summary_cache_path, **kwargs)
-        self.file_summary.get_file_tree_with_summaries()
+        self.backup_path = backup_path or os.path.join(analyze_dir, ".f1a_cache", "backup")
+        self.file_relationships_save_path = file_relationships_save_path or os.path.join(
+            analyze_dir, ".f1a_cache", "file_relationships.json"
+        )
+        self.file_summary = FileSummary(self.config, analyze_dir, summary_cache_path=summary_cache_path, **kwargs)
+        self.file_summary.generate_file_tree_with_summaries()
 
         # Initialize the large language model for detailed comparison using OpenAI Python SDK
-        self.comparison_llm = OpenAI(
-            api_key=self.config.llm.chat.api_key,
-            base_url=self.config.llm.chat.base_url
-        )
+        self.comparison_llm = OpenAI(api_key=self.config.llm.chat.api_key, base_url=self.config.llm.chat.base_url)
         self.comparison_model = self.config.llm.chat.model
 
         # Initialize the large language model for simulated data detection using OpenAI Python SDK
-        self.detection_llm = OpenAI(
-            api_key=self.config.llm.chat.api_key,
-            base_url=self.config.llm.chat.base_url
-        )
+        self.detection_llm = OpenAI(api_key=self.config.llm.chat.api_key, base_url=self.config.llm.chat.base_url)
         self.detection_model = self.config.llm.chat.model
 
         # Track deleted files
@@ -163,10 +176,7 @@ Result: Yes
 
             # Use OpenAI Python SDK to call the model
             response = self.comparison_llm.chat.completions.create(
-                model=self.comparison_model,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
+                model=self.comparison_model, messages=[{"role": "user", "content": prompt}]
             )
             result = response.choices[0].message.content.strip().upper()
 
@@ -211,10 +221,7 @@ Result: Yes
 
             # Use OpenAI Python SDK to call the model
             response = self.detection_llm.chat.completions.create(
-                model=self.detection_model,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
+                model=self.detection_model, messages=[{"role": "user", "content": prompt}]
             )
             result = response.choices[0].message.content.strip().upper()
 
@@ -275,7 +282,7 @@ Result: Yes
             Dictionary mapping file paths to their summaries
         """
         # Get file tree with summaries
-        self.file_summary.get_file_tree_with_summaries()
+        self.file_summary.generate_file_tree_with_summaries()
         result = self.file_summary.file_cache
 
         summaries = {}
@@ -307,8 +314,12 @@ Result: Yes
             if not os.path.exists(file_path):
                 continue
 
+            ext = os.path.splitext(file_path)[1].lower()
             # Do not compare markdown files because they are usually reports
-            if ".md" in file_path:
+            if ext in IGNORE_FILE_EXT:
+                continue
+
+            if any(d in file_path for d in IGNORE_DIRS + IGNORE_FILES):
                 continue
 
             # Get the parent directory of the current file
@@ -352,8 +363,6 @@ Result: Yes
             try:
                 # Call rerank_with_scores method to get both reranked documents and scores
                 reranked_docs, rerank_scores = reranker.rerank_with_scores(other_summaries, query)
-                
-                print(reranked_docs, rerank_scores, other_summaries)
 
                 # Create results structure with original indices and scores
                 results = []
@@ -432,7 +441,6 @@ Result: Yes
             summaries: Dictionary mapping file paths to their summaries
         """
         # Filter for code files only: py, sh, c, cpp, r
-        code_extensions = {".py", ".sh", ".c", ".cpp", ".r"}
 
         for file_path in summaries.keys():
             # Skip if file has already been deleted
@@ -443,7 +451,10 @@ Result: Yes
             _, ext = os.path.splitext(file_path)
 
             # Check if it's a code file
-            if ext.lower() not in code_extensions:
+            if ext.lower() not in CODE_EXTENSIONS:
+                continue
+
+            if any(d in file_path for d in IGNORE_DIRS + IGNORE_FILES):
                 continue
 
             # Check if the file contains simulated data
@@ -484,7 +495,7 @@ Result: Yes
         logger.info("Building file relationship graph")
 
         # Get all files from file_summary
-        self.file_summary.get_file_tree_with_summaries()
+        self.file_summary.generate_file_tree_with_summaries()
         all_files = list(self.file_summary.file_cache.keys())
 
         # Create a dictionary to store file relationships
@@ -495,20 +506,21 @@ Result: Yes
             # Skip non-existent files
             if not os.path.exists(file_path):
                 continue
+
+            if any(d in file_path for d in IGNORE_DIRS + IGNORE_FILES):
+                continue
+
             # Get file extension
             _, ext = os.path.splitext(file_path)
 
-            if ext.lower() in GRAPH_IGNORE_FILE_EXT:
+            if ext.lower() in IGNORE_FILE_EXT:
                 continue
-            # Check if this is a result file
-            is_no_child = ext.lower() in GRAPH_NO_CHILD_FILE_EXT
 
-            # Skip binary files for content scanning (they can't reference others)
-            if is_no_child:
+            if ext.lower() in GRAPH_NO_CHILD_FILE_EXT:
                 continue
 
             logger.debug(f"Finding children files for: {file_path}")
-            
+
             # Read file content
             content = self._read_file_content(file_path)
 
@@ -525,7 +537,10 @@ Result: Yes
                 other_basename = os.path.splitext(other_filename)[0]
 
                 _, ext = os.path.splitext(other_file_path)
-                if ext.lower() in GRAPH_IGNORE_FILE_EXT:
+                if ext.lower() in IGNORE_FILE_EXT:
+                    continue
+
+                if any(d in file_path for d in IGNORE_DIRS + IGNORE_FILES):
                     continue
 
                 # Check if the filename or basename is referenced in the content
@@ -557,18 +572,163 @@ Result: Yes
             file_relationships: Dictionary mapping file paths to list of referenced file paths
         """
         try:
-            # Create a more readable version with just filenames
-            for file_path, referenced_files in file_relationships.items():
-                filename = os.path.basename(file_path)
-
             # Save both the full path version and the readable version
-            json_path = os.path.join(self.analyze_dir, "file_relationships.json")
+            json_path = self.file_relationships_save_path
             with open(json_path, "w", encoding="utf-8") as f:
                 json.dump(file_relationships, f, indent=2)
 
             logger.info(f"File relationships saved to {json_path}")
         except Exception as e:
             logger.error(f"Error saving file relationships to JSON: {e}")
+
+    def _load_relationships_from_json(self) -> Dict[str, List[str]]:
+        """
+        Load the file relationships dictionary from a JSON file
+
+        Returns:
+            Dictionary mapping file paths to list of referenced file paths
+        """
+        try:
+            json_path = self.file_relationships_save_path
+            with open(json_path, "r", encoding="utf-8") as f:
+                file_relationships = json.load(f)
+
+            logger.info(f"Loaded file relationships from {json_path}")
+            return file_relationships
+        except Exception as e:
+            logger.error(f"Error loading file relationships from JSON: {e}")
+            return {}
+
+    def search_workspace_graph(self, max_token_cnt: int = 1000, question: str = "") -> str:
+        """
+        Search workspace using file relationship graph to provide structured results
+
+        Args:
+            max_token_cnt: Maximum number of tokens to include in the result
+            question: Optional question to rerank results based on relevance
+
+        Returns:
+            String representation of file relationships with summaries
+        """
+        # Build or load the file relationship graph
+        self.build_graph()
+        file_relationships = self._load_relationships_from_json()
+
+        # Get file summaries
+        summaries = self.file_summary.get_all_summaries()
+
+        # Build result string with graph structure
+        result = [f"File relationship graph: {self.analyze_dir}"]
+
+        # Add each file and its relationships
+        for file_path, referenced_files in file_relationships.items():
+            # Get file summary if available
+            abs_file_path = os.path.abspath(os.path.join(self.analyze_dir, file_path))
+            file_summary = summaries.get(abs_file_path, "No summary available")
+
+            # Add file information
+            result.append(f"\nFile: {file_path}")
+            result.append(f"Summary: {file_summary}")
+
+            # Add referenced files
+            if referenced_files:
+                result.append("References:")
+                for ref_file in referenced_files:
+                    ref_path = os.path.abspath(os.path.join(self.analyze_dir, ref_file))
+                    ref_summary = summaries.get(ref_path, "No summary available")
+                    result.append(f"  - {ref_file}: {ref_summary}")
+            else:
+                result.append("References: None")
+
+        # Check token count and truncate or rerank if necessary
+        if count_tokens_approximately(["\n".join(result)]) > max_token_cnt:
+            if question:
+                logger.info(f"Reranking result with question: {question}")
+                from .reranker.api_reranker import APIReranker
+
+                reranker = APIReranker(
+                    model=self.config.rerank.rerank_model,
+                    api_key=self.config.rerank.rerank_api_key,
+                    base_url=self.config.rerank.rerank_base_url,
+                )
+                result = reranker.rerank_to_limit(result, question, max_token_cnt)
+            else:
+                logger.warning("No question provided for reranking. Directly truncate the result.")
+                truncated = []
+                current_token = 0
+                for line in result:
+                    token_cnt = count_tokens_approximately([line])
+                    if current_token + token_cnt <= max_token_cnt:
+                        truncated.append(line)
+                        current_token += token_cnt
+                    else:
+                        break
+
+                result = truncated
+
+        return "\n".join(result)
+
+    def search_workspace_direct(self, max_token_cnt: int = 1000, question: str = "") -> str:
+        """
+        Get file tree and one-sentence summary for each file directly without relationship graph
+
+        Args:
+            directory: Directory path
+
+        Returns:
+            String representation of file tree with one-sentence summaries for each file
+        """
+
+        # Generate file tree and summaries
+        file_tree = self.file_summary.generate_file_tree_with_summaries()
+
+        # Build result string
+        result = [f"File tree: {self.analyze_dir}"]
+
+        # Add summaries in file tree order
+        for path, line, summary in file_tree:
+            result.append(f"{line}: {summary}")
+
+        if count_tokens_approximately(["\n".join(result)]) > max_token_cnt:
+            if question:
+                logger.info(f"Reranking result with question: {question}")
+
+                reranker = APIReranker(
+                    model=self.config.rerank.rerank_model,
+                    api_key=self.config.rerank.rerank_api_key,
+                    base_url=self.config.rerank.rerank_base_url,
+                )
+                result = reranker.rerank_to_limit(result, question, max_token_cnt)
+            else:
+                logger.warning("No question provided for reranking. Directly truncate the result.")
+                truncated = []
+                current_token = 0
+                for line in result:
+                    token_cnt = count_tokens_approximately([line])
+                    if current_token + token_cnt <= max_token_cnt:
+                        truncated.append(line)
+                        current_token += token_cnt
+                    else:
+                        break
+
+                result = truncated
+
+        return "\n".join(result)
+
+    def search_workspace(self, max_token_cnt: int = 1000, question: str = "", use_graph: bool = True) -> str:
+        """
+        Get file tree and one-sentence summary for each file with relationship graph
+
+        Args:
+            directory: Directory path
+
+        Returns:
+            String representation of file tree with one-sentence summaries for each file
+        """
+        if use_graph:
+            return self.search_workspace_graph(max_token_cnt, question)
+        else:
+            return self.search_workspace_direct(max_token_cnt, question)
 
 
 # Example usage
@@ -577,9 +737,11 @@ if __name__ == "__main__":
     config = File1AgentConfig.from_toml("outputs/pred_aki_trend_eicu_demo/config.toml")
 
     # Create file manager
-    file_manager = FileManager(config, 
-                               analyze_dir="outputs/pred_aki_trend_eicu_demo/workspace",
-                               summary_cache_path="outputs/pred_aki_trend_eicu_demo/file_summary_cache.json")
+    file_manager = FileManager(
+        config,
+        analyze_dir="outputs/pred_aki_trend_eicu_demo/workspace",
+        summary_cache_path="outputs/pred_aki_trend_eicu_demo/file_summary_cache.json",
+    )
 
     # Clean the repository
     result = file_manager.clean_repository()

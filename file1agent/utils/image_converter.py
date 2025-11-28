@@ -10,7 +10,7 @@ from loguru import logger
 import fitz
 
 
-class PDFConverter:
+class ImageConverter:
     """
     Utility class for converting PDF files to images.
     """
@@ -230,12 +230,12 @@ class PDFConverter:
             # If it's a PDF file, convert it to PNG first
             if fig.lower().endswith(".pdf"):
                 if merge_pdf:
-                    name, img_base64 = PDFConverter.convert_pdf_to_merged_image(fig)
+                    name, img_base64 = ImageConverter.convert_pdf_to_merged_image(fig)
                     if name is None:
                         continue
                     fig_base64_list.append((name, img_base64))
                 else:
-                    name_list, img_base64_list = PDFConverter.convert_pdf_to_separate_images(fig)
+                    name_list, img_base64_list = ImageConverter.convert_pdf_to_separate_images(fig)
                     if name_list is None:
                         continue
                     fig_base64_list.extend(zip(name_list, img_base64_list))
