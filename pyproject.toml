@@ -37,19 +37,19 @@ dependencies = [
 license = "MIT"
 
 [project.urls]
-Homepage = "https://github.com/jarrycyx/file1-agent"
-Repository = "https://github.com/jarrycyx/file1-agent.git"
+Homepage = "https://github.com/jarrycyx/file1agent"
+Repository = "https://github.com/jarrycyx/file1agent.git"
 
 
 [tool.hatch.build]
 include = [
-    "file1-agent/**/*.py",
+    "file1agent/**/*.py",
 ]
 exclude = [
     "**/*",
-    "!file1-agent/**/*.py",
+    "!file1agent/**/*.py",
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["file1-agent"]
-only-include = ["file1-agent"]
+packages = ["file1agent"]
+only-include = ["file1agent"]

@@ -20,14 +20,14 @@ Even better, the file relationship graph and automatically generated file summar
 You can install file1.agent using pip:
 
 ```bash
-pip install file1-agent
+pip install file1agent
 ```
 
 For development:
 
 ```bash
-git clone https://github.com/file1/file1-agent.git
-cd file1-agent
+git clone https://github.com/file1/file1agent.git
+cd file1agent
 pip install -e .[dev]
 ```
 
@@ -89,4 +89,4 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 
 ## Support
 
-If you have any questions or issues, please open an issue on [GitHub Issues](https://github.com/jarrycyx/file1-agent/issues).
+If you have any questions or issues, please open an issue on [GitHub Issues](https://github.com/jarrycyx/file1agent/issues).
