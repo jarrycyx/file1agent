@@ -147,11 +147,13 @@ def process_instance(
     try:
         env = get_sb_environment(config, instance)
         
-        file1_main(
-            env.container_id, 
-            config.get("environment", {}).get("cwd", "/testbed"), 
-            str(instance_dir)
+        additional_prompt = file1_main(
+            task=task,
+            container_id=env.container_id, 
+            repo_dir_in_container=config.get("environment", {}).get("cwd", "/testbed"), 
+            local_repo_dir=str(output_dir / instance["repo"].replace("/", "__"))
         )
+        config.get("agent", {})["instance_template"] += additional_prompt
         
         agent = ProgressTrackingAgent(
             model,
@@ -200,8 +202,10 @@ def filter_instances(
 
 
 
-def file1_main(container_id: str, repo_dir_in_container: str, local_repo_dir: str):
+def file1_main(task: str, container_id: str, repo_dir_in_container: str, local_repo_dir: str):
     # Copy repo files
+    os.makedirs(local_repo_dir, exist_ok=True)
+    
     out = subprocess.Popen(["docker", "cp", f"{container_id}:{repo_dir_in_container}", local_repo_dir], 
                            stdout=subprocess.PIPE,
                            stderr=subprocess.PIPE)
@@ -217,24 +221,30 @@ def file1_main(container_id: str, repo_dir_in_container: str, local_repo_dir: st
     config = File1AgentConfig.from_toml(config_path)
     file_manager = FileManager(
         config=config,
-        analyze_dir=local_repo_dir
+        analyze_dir=local_repo_dir,
+        log_path=os.path.join("outputs", "file1agent.log"),
     )
 
     direct_summary = file_manager.search_workspace(
-        max_token_cnt=1000, question="How is the data analysis performed?", use_graph=False
+        max_token_cnt=1000, question=task, use_graph=False
     )
     
     graph_summary = file_manager.search_workspace(
-        max_token_cnt=1000, question="How is the data analysis performed?", use_graph=True
+        max_token_cnt=1000, question=task, use_graph=True
     )
     
     additional_prompt = f"""
+    
+    
 Below are the file tree and file graph summaries for the repository, please understand them before coding:
 {direct_summary}
 Below are the most related files to the problem and their related files:
 {graph_summary}
 Avoid viewing full content of files if you only need to understand the overall functionality of the code.
     """
+    
+    with open(os.path.join(local_dir, "file1agent_prompt.txt"), "w") as f:
+        f.write(additional_prompt)
     
     return additional_prompt
 

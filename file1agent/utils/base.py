@@ -17,7 +17,13 @@ class File1AgentBase:
     Uses file summaries to identify potential duplicates and LLM to verify.
     """
 
-    def __init__(self, config: Union[File1AgentConfig, str, dict, None] = None, log_level: str = "WARNING", **kwargs):
+    def __init__(
+        self,
+        config: Union[File1AgentConfig, str, dict, None] = None,
+        log_level: str = "WARNING",
+        log_path: str = None,
+        **kwargs,
+    ):
         """
         Initialize the file management tool
 
@@ -33,6 +39,15 @@ class File1AgentBase:
             colorize=True,
             level=log_level,
         )
+        if log_path is not None:
+            # print(f"Log path: {log_path}")
+            logger.add(
+                log_path,
+                format="<green>{time:YYYYMMDDHHmmss}</green>|<level>{level}</level>|{message}|<yellow>{file}:{line}</yellow>|"
+                + f"<cyan>file1.agent</cyan>",
+                colorize=False,
+                level="DEBUG",
+            )
 
         if isinstance(config, str):
             if os.path.isfile(config):

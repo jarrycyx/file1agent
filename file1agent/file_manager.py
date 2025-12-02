@@ -10,11 +10,13 @@ import tqdm
 import numpy as np
 import re
 from openai import OpenAI
+import multiprocessing
+from functools import partial
 
 from loguru import logger
 
 from .utils.base import File1AgentBase
-from .config import File1AgentConfig
+from .config import File1AgentConfig, ModelConfig
 from .utils.token_cnt import HumanMessage, count_tokens_approximately
 from .utils.visualization import visualize_graph
 from .utils.file_summary import FileSummary
@@ -22,7 +24,7 @@ from .utils.file_summary import FileSummary
 from .reranker.api_reranker import APIReranker
 
 IGNORE_DIRS = [".git", "__pycache__", ".pytest_cache", "node_modules", ".vscode", ".idea", ".f1a_cache"]
-IGNORE_FILES = [".DS_Store", "Thumbs.db"]
+IGNORE_FILES = [".DS_Store", "Thumbs.db", "__init__.py"]
 CODE_EXTENSIONS = {".py", ".sh", ".c", ".cpp", ".r"}
 
 # Define file extensions to ignore for file relation analysis
@@ -62,6 +64,8 @@ class FileManager(File1AgentBase):
         file_relationships_save_path: str = None,
         backup_path: str = None,
         log_level: str = "WARNING",
+        log_path: str = None,
+        worker_num: int = 1,
         **kwargs,
     ):
         """
@@ -73,14 +77,18 @@ class FileManager(File1AgentBase):
             summary_cache_path: Path to summary cache JSON file, default to "file_summary_cache.json" in analyze_dir
             backup_path: Path to backup directory for deleted files, default to ".f1a_cache/backup" in analyze_dir
         """
-        super().__init__(config, log_level=log_level, **kwargs)
+        super().__init__(config, log_level=log_level, log_path=log_path, **kwargs)
+
+        self.worker_num = worker_num
 
         self.analyze_dir = analyze_dir
         self.backup_path = backup_path or os.path.join(analyze_dir, ".f1a_cache", "backup")
         self.file_relationships_save_path = file_relationships_save_path or os.path.join(
             analyze_dir, ".f1a_cache", "file_relationships.json"
         )
-        self.file_summary = FileSummary(self.config, analyze_dir, summary_cache_path=summary_cache_path, **kwargs)
+        self.file_summary = FileSummary(
+            self.config, analyze_dir, summary_cache_path=summary_cache_path, worker_num=worker_num, **kwargs
+        )
         self.file_summary.generate_file_tree_with_summaries()
 
         # Initialize the large language model for detailed comparison using OpenAI Python SDK
@@ -97,43 +105,6 @@ class FileManager(File1AgentBase):
         # Track duplicate file pairs
         self.duplicate_pairs = []
 
-    def _read_file_content(self, file_path: str, max_size: int = 100000) -> str:
-        """
-        Read file content for detailed comparison
-
-        Args:
-            file_path: File path
-            max_size: Maximum number of bytes to read
-
-        Returns:
-            File content as string
-        """
-        try:
-            # Check file extension to handle image and PDF files
-            file_ext = os.path.splitext(file_path)[1].lower()
-            if file_ext in [".png", ".jpg", ".jpeg", ".pdf"]:
-                # For image and PDF files, we'll use the summary from FileSummary
-                return f"Image/PDF file: {self.file_summary.file_cache[file_path]}"
-
-            # Try to read as text file
-            try:
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                    content = f.read(max_size)
-                    return content
-            except UnicodeDecodeError:
-                # If UTF-8 decoding fails, try other encodings
-                try:
-                    with open(file_path, "r", encoding="gbk", errors="ignore") as f:
-                        content = f.read(max_size)
-                        return content
-                except UnicodeDecodeError:
-                    # If still fails, it's a binary file
-                    logger.warning(f"{file_path} is a binary file, skipping")
-                    return f"Binary file: {file_path}"
-        except Exception as e:
-            logger.warning(f"Error reading file {file_path}: {e}")
-            return f"Cannot read file: {str(e)}"
-
     def _compare_files_with_llm(self, file1_path: str, file2_path: str) -> bool:
         """
         Use LLM to compare two files and determine if they are duplicates
@@ -147,8 +118,12 @@ class FileManager(File1AgentBase):
         """
         try:
             # Read file contents
-            content1 = self._read_file_content(file1_path)
-            content2 = self._read_file_content(file2_path)
+            content1 = FileSummary._read_file_content(
+                file1_path, vlm_config=self.config.llm.vision, file_cache=self.file_summary.file_cache
+            )
+            content2 = FileSummary._read_file_content(
+                file2_path, vlm_config=self.config.llm.vision, file_cache=self.file_summary.file_cache
+            )
 
             file1_name = os.path.basename(file1_path)
             file2_name = os.path.basename(file2_path)
@@ -199,7 +174,9 @@ Result: Yes
         """
         try:
             # Read file content
-            content = self._read_file_content(file_path)
+            content = FileSummary._read_file_content(
+                file_path, vlm_config=self.config.llm.vision, file_cache=self.file_summary.file_cache
+            )
 
             file_name = os.path.basename(file_path)
 
@@ -484,7 +461,7 @@ Result: Yes
 
         return self.deleted_files
 
-    def build_graph(self) -> Dict[str, List[str]]:
+    def build_graph(self, visualize: bool = True) -> Dict[str, List[str]]:
         """
         Build a directed graph of file relationships based on file name references
 
@@ -501,67 +478,41 @@ Result: Yes
         # Create a dictionary to store file relationships
         file_relationships = {}
 
-        # For each file, find references to other files
-        for file_path in tqdm.tqdm(all_files, desc="Building file relationship graph"):
-            # Skip non-existent files
-            if not os.path.exists(file_path):
-                continue
+        # Determine the number of processes to use
+        logger.info(f"Using {self.worker_num} processes to build file relationship graph")
 
-            if any(d in file_path for d in IGNORE_DIRS + IGNORE_FILES):
-                continue
+        # Create a partial function with all_files as a fixed argument
+        process_func = partial(
+            self._process_file_for_graph,
+            analyze_dir=self.analyze_dir,
+            all_files=all_files,
+            file_cache=self.file_summary.file_cache,
+            vlm_config=self.config.llm.vision,
+        )
 
-            # Get file extension
-            _, ext = os.path.splitext(file_path)
+        # Use multiprocessing to process files in parallel
+        with multiprocessing.Pool(processes=self.worker_num) as pool:
+            results = list(
+                tqdm.tqdm(
+                    pool.imap(process_func, all_files), total=len(all_files), desc="Building file relationship graph"
+                )
+            )
 
-            if ext.lower() in IGNORE_FILE_EXT:
-                continue
-
-            if ext.lower() in GRAPH_NO_CHILD_FILE_EXT:
-                continue
-
-            logger.debug(f"Finding children files for: {file_path}")
-
-            # Read file content
-            content = self._read_file_content(file_path)
-
-            # Find references to other files
-            referenced_files = []
-
-            # For each other file, check if its name is referenced in the current file
-            for other_file_path in all_files:
-                if other_file_path == file_path:
-                    continue
-
-                # Get just the filename without path
-                other_filename = os.path.basename(other_file_path)
-                other_basename = os.path.splitext(other_filename)[0]
-
-                _, ext = os.path.splitext(other_file_path)
-                if ext.lower() in IGNORE_FILE_EXT:
-                    continue
-
-                if any(d in file_path for d in IGNORE_DIRS + IGNORE_FILES):
-                    continue
-
-                # Check if the filename or basename is referenced in the content
-                # Using word boundaries to avoid partial matches
-                if re.search(r"\b" + re.escape(other_filename) + r"\b", content):
-                    referenced_files.append(os.path.relpath(other_file_path, self.analyze_dir))
-                elif re.search(r"\b" + re.escape(other_basename) + r"\b", content):
-                    referenced_files.append(os.path.relpath(other_file_path, self.analyze_dir))
-
-            logger.debug(f"Found references to: {referenced_files}")
-            # Store the relationships
+        # Process the results and build the file_relationships dictionary
+        for file_path, referenced_files in results:
             if referenced_files:
-                file_relationships[os.path.relpath(file_path, self.analyze_dir)] = referenced_files
+                file_relationships[file_path] = referenced_files
 
         # Save the file relationships to JSON
         self._save_relationships_to_json(file_relationships)
-
+    
         # Create and save the graph visualization
-        visualize_graph(
-            file_relationships, all_files, save_fig_path=os.path.splitext(self.file_relationships_save_path)[0]
-        )
+        if visualize:
+            if len(file_relationships) > 10:
+                logger.warning(f"Only visualize the first 10 file relationships out of {len(file_relationships)}")
+            visualize_graph(
+                {k: v for k, v in file_relationships.items()[:10]}, all_files, save_fig_path=os.path.splitext(self.file_relationships_save_path)[0]
+            )
 
         logger.info(f"Built file relationship graph with {len(file_relationships)} nodes")
         return file_relationships
@@ -600,6 +551,72 @@ Result: Yes
         except Exception as e:
             logger.error(f"Error loading file relationships from JSON: {e}")
             return {}
+
+    @staticmethod
+    def _process_file_for_graph(
+        file_path: str, analyze_dir: str, all_files: List[str], file_cache: Dict = {}, vlm_config: ModelConfig = None
+    ) -> Tuple[str, List[str]]:
+        """
+        Process a single file to find references to other files
+
+        Args:
+            file_path: Path to the file to process
+            all_files: List of all files in the project
+
+        Returns:
+            Tuple of (file_path, list of referenced files)
+        """
+        # Skip non-existent files
+        if not os.path.exists(file_path):
+            return (os.path.relpath(file_path, analyze_dir), [])
+
+        if any(d in file_path for d in IGNORE_DIRS + IGNORE_FILES):
+            return (os.path.relpath(file_path, analyze_dir), [])
+
+        # Get file extension
+        _, ext = os.path.splitext(file_path)
+
+        if ext.lower() in IGNORE_FILE_EXT:
+            return (os.path.relpath(file_path, analyze_dir), [])
+
+        if ext.lower() in GRAPH_NO_CHILD_FILE_EXT:
+            return (os.path.relpath(file_path, analyze_dir), [])
+
+        logger.debug(f"Finding children files for: {file_path}")
+
+        # Read file content
+        content = FileSummary._read_file_content(
+            file_path, vlm_config=vlm_config, file_cache=file_cache
+        )
+
+        # Find references to other files
+        referenced_files = []
+
+        # For each other file, check if its name is referenced in the current file
+        for other_file_path in all_files:
+            if other_file_path == file_path:
+                continue
+
+            # Get just the filename without path
+            other_filename = os.path.basename(other_file_path)
+            other_basename = os.path.splitext(other_filename)[0]
+
+            _, ext = os.path.splitext(other_file_path)
+            if ext.lower() in IGNORE_FILE_EXT:
+                continue
+
+            if any(d in file_path for d in IGNORE_DIRS + IGNORE_FILES):
+                continue
+
+            # Check if the filename or basename is referenced in the content
+            # Using word boundaries to avoid partial matches
+            if re.search(r"\b" + re.escape(other_filename) + r"\b", content):
+                referenced_files.append(os.path.relpath(other_file_path, analyze_dir))
+            elif re.search(r"\b" + re.escape(other_basename) + r"\b", content):
+                referenced_files.append(os.path.relpath(other_file_path, analyze_dir))
+
+        logger.debug(f"Found references to: {referenced_files}")
+        return (os.path.relpath(file_path, analyze_dir), referenced_files)
 
     def search_workspace_graph(self, max_token_cnt: int = 1000, question: str = "") -> str:
         """

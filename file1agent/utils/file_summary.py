@@ -7,8 +7,12 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 from loguru import logger
 from openai import OpenAI
+from multiprocessing import Pool, Manager, Lock
+import copy
+import tqdm
+import functools
 
-from ..config import File1AgentConfig
+from ..config import File1AgentConfig, ModelConfig
 from .token_cnt import HumanMessage, count_tokens_approximately
 from ..vision import OpenAIVLM
 from .image_converter import ImageConverter
@@ -16,19 +20,20 @@ from .base import File1AgentBase
 
 # Filter out hidden files and specific directories
 IGNORE_DIRS = [".git", "__pycache__", ".pytest_cache", "node_modules", ".vscode", ".idea", ".f1a_cache"]
-IGNORE_FILES = [".DS_Store", "Thumbs.db"]
+IGNORE_FILES = [".DS_Store", "Thumbs.db", "__init__.py"]
 
 
-class FileSummary(File1AgentBase):
+class FileSummary:
     """
     File inspection and summarization tool for checking file modification times and generating file trees with one-sentence summaries for each file.
     """
 
     def __init__(
         self,
-        config: Union[File1AgentConfig, str, dict, None] = None,
+        config: File1AgentConfig,
         analyze_dir: str = None,
         summary_cache_path: str = None,
+        worker_num: int = 1,
         **kwargs,
     ):
         """
@@ -39,14 +44,17 @@ class FileSummary(File1AgentBase):
             config: Configuration object
             summary_cache_path: Path to summary cache JSON file, default to "file_summary_cache.json" in analyze_dir
         """
-        super().__init__(config, **kwargs)
         self.analyze_dir = analyze_dir
+        self.config = config
+        self.worker_num = worker_num
 
-        self.summary_cache_path = summary_cache_path or os.path.join(self.analyze_dir, ".f1a_cache", "file_summary_cache.json")
+        self.summary_cache_path = summary_cache_path or os.path.join(
+            self.analyze_dir, ".f1a_cache", "file_summary_cache.json"
+        )
+
         self._load_cache()
 
         # Initialize the large language model using OpenAI Python SDK
-        self.concluder_llm = OpenAI(api_key=self.config.llm.chat.api_key, base_url=self.config.llm.chat.base_url)
         self.concluder_model = self.config.llm.chat.model
 
     def _load_cache(self) -> Dict:
@@ -72,8 +80,9 @@ class FileSummary(File1AgentBase):
 
     def _save_cache(self):
         """
-        Save file cache
+        Save file cache with thread safety
         """
+
         # Delete files that does not exists
         for file_path in list(self.file_cache.keys()):
             if not os.path.exists(file_path):
@@ -88,19 +97,6 @@ class FileSummary(File1AgentBase):
                 json.dump(self.file_cache, f, ensure_ascii=False, indent=2)
         except Exception as e:
             logger.warning(f"Failed to save file cache: {e}")
-
-    def get_file_summaries(self, file_path: str):
-        try:
-            abs_path = os.path.abspath(file_path)
-            if self._is_file_updated(abs_path):
-                summary = self._summarize_file(abs_path)
-                self._update_file_cache(abs_path, summary)
-
-            return self.file_cache[abs_path]
-        except Exception as e:
-            logger.warning(f"Failed to get file summaries {abs_path}: {e}")
-            logger.warning(traceback.format_exc())
-            return f"Error: Failed to get file summaries {abs_path}: {e}"
 
     def _get_file_mtime(self, file_path: str) -> float:
         """
@@ -136,13 +132,17 @@ class FileSummary(File1AgentBase):
         logger.debug(f"Check file {abs_path}, current mtime: {current_mtime}, cached mtime: {cached_mtime}")
         return current_mtime > cached_mtime
 
-    def _read_file_content(self, file_path: str, max_size: int = 5000) -> str:
+    @staticmethod
+    def _read_file_content(
+        file_path: str, max_size: int = 5000, vlm_config: ModelConfig = None, file_cache: Dict = {}
+    ) -> str:
         """
         Read file content
 
         Args:
             file_path: File path
             max_size: Maximum number of bytes to read
+            vlm_config: Vision model configuration
 
         Returns:
             File content as string
@@ -151,6 +151,8 @@ class FileSummary(File1AgentBase):
             # Check file extension to handle image and PDF files
             file_ext = os.path.splitext(file_path)[1].lower()
             if file_ext in [".png", ".jpg", ".jpeg", ".pdf"]:
+                if file_path in file_cache:
+                    return file_cache[file_path]
                 for try_i in range(3):
                     try:
                         # 获取base64编码
@@ -161,7 +163,7 @@ class FileSummary(File1AgentBase):
                             # 使用视觉模型进行分类和总结
                             prompt = "Please summarize in one sentence (no more than 500 characters) the main function and content of the following image:"
                             logger.info(f"Summarize {file_path} with prompt: {prompt}")
-                            vlm = OpenAIVLM(self.config.llm.vision)
+                            vlm = OpenAIVLM(vlm_config)
                             summary = vlm.call_vlm(base64_content, prompt)
                             if summary:
                                 return summary
@@ -186,14 +188,19 @@ class FileSummary(File1AgentBase):
                     return ""
         except Exception as e:
             logger.warning(f"Error reading file {file_path}: {e}")
-            return f"Cannot read file: {str(e)}"
+            return None
 
-    def _summarize_file(self, file_path: str) -> str:
+    @staticmethod
+    def _summarize_file(
+        file_path: str, llm_config: ModelConfig, vlm_config: ModelConfig = None, file_cache: Dict = {}
+    ) -> str:
         """
         Use large language model to generate a one-sentence summary of the file
 
         Args:
             file_path: File path
+            llm_config: Chat model configuration
+            vlm_config: Vision model configuration
 
         Returns:
             One-sentence summary of the file (no more than 200 characters)
@@ -201,7 +208,7 @@ class FileSummary(File1AgentBase):
         for try_i in range(3):
             try:
                 # Read file content, ensuring correct handling
-                content = self._read_file_content(file_path)
+                content = FileSummary._read_file_content(file_path, vlm_config=vlm_config, file_cache=file_cache)
                 if not content:
                     return "Cannot read file content"
 
@@ -218,13 +225,14 @@ class FileSummary(File1AgentBase):
                 file_name = os.path.basename(file_path)
 
                 # Build a more detailed prompt including file path information
-                prompt = f"Please summarize in one sentence (no more than 500 characters) the main function and content of the following file '{file_name}':\n\nFile Path: {file_path}\n\nFile Content:\n{content}\n\nSummary:"
+                prompt = f"Please summarize in one sentence (no more than 500 characters) the main function and content of the following file '{file_name}':\n\nFile Content:\n{content}"
 
                 logger.debug(f"Summarizing file {file_path}...")
 
+                concluder_llm = OpenAI(api_key=llm_config.api_key, base_url=llm_config.base_url)
                 # Use OpenAI Python SDK to call the model
-                response = self.concluder_llm.chat.completions.create(
-                    model=self.concluder_model, messages=[{"role": "user", "content": prompt}]
+                response = concluder_llm.chat.completions.create(
+                    model=llm_config.model, messages=[{"role": "user", "content": prompt}]
                 )
                 summary = response.choices[0].message.content.strip()
 
@@ -251,24 +259,60 @@ class FileSummary(File1AgentBase):
         """
         abs_path = os.path.abspath(file_path)
         this_file_summary = self.file_cache.get(abs_path, {}).get("summary", "")
-        if self._is_file_updated(abs_path) or len(this_file_summary) > 2000:
-            summary = self._summarize_file(abs_path)
-            self._update_file_cache(abs_path, summary)
+        if os.path.isfile(abs_path):
+            if self._is_file_updated(abs_path) or len(this_file_summary) > 2000:
+                summary = self._summarize_file(
+                    abs_path, llm_config=self.config.llm.chat, vlm_config=self.config.llm.vision
+                )
+                self._update_cache(abs_path, summary)
+            else:
+                # Get summary from cache
+                summary = this_file_summary
+            return summary
         else:
-            # Get summary from cache
-            summary = this_file_summary
-        return summary
+            # TODO: Handle directory summary
+            return ""
 
     def get_all_summaries(self) -> Dict[str, str]:
         """
-        Get all file summaries
+        Get all file summaries using multiprocessing
 
         Returns:
             Dictionary of file path to file summary
         """
-        return {file_path: self.get_file_summary(file_path) for file_path in self.file_cache.keys()}
+        all_summaries = {}
+        all_file_tree = self._generate_file_tree_recusive(self.analyze_dir)
+        all_paths = [path for path, _ in all_file_tree]
 
-    def _update_file_cache(self, file_path: str, summary: str):
+        # If worker_num is 1, use the original single-process approach
+        if self.worker_num <= 1:
+            for file_path in all_paths:
+                if os.path.isfile(file_path):
+                    all_summaries[file_path] = self.get_file_summary(file_path)
+        else:
+            # Prepare arguments for multiprocessing
+            partial_func = functools.partial(
+                self._summarize_file, llm_config=self.config.llm.chat, vlm_config=self.config.llm.vision
+            )
+            task_list = []
+            for path in all_paths:
+                if os.path.isfile(path) and self._is_file_updated(path):
+                    task_list.append(path)
+
+            # Try using spawn method which works better across platforms
+            with Pool(processes=self.worker_num) as pool:
+                results = pool.imap_unordered(partial_func, task_list)
+
+                results = list(tqdm.tqdm(results, total=len(task_list)))
+
+                # Collect results
+                for file_path, summary in zip(task_list, results):
+                    self._update_cache(file_path, summary)
+
+        self._save_cache()
+        return all_summaries
+
+    def _update_cache(self, file_path: str, summary: str):
         """
         Update file cache
 
@@ -279,7 +323,7 @@ class FileSummary(File1AgentBase):
         abs_path = os.path.abspath(file_path)
         self.file_cache[abs_path] = {"mtime": self._get_file_mtime(abs_path), "summary": summary}
 
-    def generate_file_tree_recusive(self, analyze_path: str, prefix: str = "") -> List[str]:
+    def _generate_file_tree_recusive(self, analyze_path: str, prefix: str = "") -> List[str]:
         """
         Generate file tree and file summaries
 
@@ -300,7 +344,7 @@ class FileSummary(File1AgentBase):
         for i, item_path in enumerate(item_path_list):
             if any(d in item_path for d in IGNORE_DIRS + IGNORE_FILES):
                 continue
-            
+
             is_last_item = i == len(items) - 1
 
             # Add current item to file tree
@@ -309,14 +353,14 @@ class FileSummary(File1AgentBase):
 
             # If it's a file, check if summary needs to be updated
             if os.path.isfile(item_path):
-                this_file_summary = self.get_file_summary(item_path)
-                file_tree.append((item_path, file_tree_show_line, this_file_summary))
+                # this_file_summary = self.get_file_summary(item_path)
+                file_tree.append((item_path, file_tree_show_line))
             elif os.path.isdir(item_path):
-                file_tree.append((item_path, file_tree_show_line, ""))
+                file_tree.append((item_path, file_tree_show_line))
                 extension = "    " if is_last_item else "│   "
-                new_tree = self.generate_file_tree_recusive(item_path, prefix + extension)
+                new_tree = self._generate_file_tree_recusive(item_path, prefix + extension)
                 file_tree.extend(new_tree)
-        
+
         return file_tree
 
     def generate_file_tree_with_summaries(self) -> List[str]:
@@ -330,10 +374,16 @@ class FileSummary(File1AgentBase):
             List of file tree tuples (file_path, file_tree_show_line, file_summary)
         """
 
-        file_tree = self.generate_file_tree_recusive(self.analyze_dir)
+        self.get_all_summaries()
+        file_tree = self._generate_file_tree_recusive(self.analyze_dir)
+        file_tree_with_summaries = []
+        for item in file_tree:
+            file_path, file_tree_show_line = item
+            file_summary = self.get_file_summary(file_path)
+            file_tree_with_summaries.append((file_path, file_tree_show_line, file_summary))
 
         self._save_cache()
-        return file_tree
+        return file_tree_with_summaries
 
 
 # Example usage
