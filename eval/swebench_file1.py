@@ -244,8 +244,8 @@ Below are the most related files to the problem and their related files:
 Avoid viewing full content of files if you only need to understand the overall functionality of the code.
     """
     
-    with open(os.path.join(local_dir, "file1agent_prompt.txt"), "w") as f:
-        f.write(additional_prompt)
+    # with open(os.path.join(local_dir, "file1agent_prompt.txt"), "w") as f:
+    #     f.write(additional_prompt)
     
     return additional_prompt
 
