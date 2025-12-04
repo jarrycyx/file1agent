@@ -100,12 +100,8 @@ class FileManager(File1AgentBase):
         """
         try:
             # Read file contents
-            content1 = self.file_summary._read_file_content(
-                file1_path, vlm_config=self.config.llm.vision, file_cache=self.file_summary.file_cache
-            )
-            content2 = self.file_summary._read_file_content(
-                file2_path, vlm_config=self.config.llm.vision, file_cache=self.file_summary.file_cache
-            )
+            content1 = self.file_summary._read_file_content(file1_path)
+            content2 = self.file_summary._read_file_content(file2_path)
 
             file1_name = os.path.basename(file1_path)
             file2_name = os.path.basename(file2_path)
@@ -156,9 +152,7 @@ Result: Yes
         """
         try:
             # Read file content
-            content = self.file_summary._read_file_content(
-                file_path, vlm_config=self.config.llm.vision, file_cache=self.file_summary.file_cache
-            )
+            content = self.file_summary._read_file_content(file_path)
 
             file_name = os.path.basename(file_path)
 

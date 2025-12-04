@@ -19,6 +19,7 @@ from .image_converter import ImageConverter
 from .base import File1AgentBase
 from .file_inclusion import FileInclusion
 
+
 class FileSummary:
     """
     File inspection and summarization tool for checking file modification times and generating file trees with one-sentence summaries for each file.
@@ -71,7 +72,7 @@ class FileSummary:
                         f"File summary cache loaded with {len(file_summary_cache)} entries: {str(file_summary_cache)}"
                     )
                     self.file_cache = file_summary_cache
-                    
+
                     # Delete files that are not in file_tree
                     file_tree = self._generate_file_tree_recusive(self.analyze_dir)
                     file_tree = [fp for fp, _ in file_tree]
@@ -80,7 +81,7 @@ class FileSummary:
                         if fp in file_tree:
                             new_cache[fp] = v
                     self.file_cache = new_cache
-                    
+
                     return self.file_cache
             except Exception as e:
                 logger.warning(f"Failed to load file summary cache: {e}")
@@ -141,9 +142,7 @@ class FileSummary:
         logger.debug(f"Check file {abs_path}, current mtime: {current_mtime}, cached mtime: {cached_mtime}")
         return current_mtime > cached_mtime
 
-    def _read_file_content(
-        self, file_path: str, max_size: int = 5000
-    ) -> str:
+    def _read_file_content(self, file_path: str, max_size: int = 5000) -> str:
         """
         Read file content
 
@@ -160,7 +159,7 @@ class FileSummary:
             if file_ext in [".png", ".jpg", ".jpeg", ".pdf"]:
                 if not self.config.llm.vision:
                     return ""
-                
+
                 if file_path in self.file_cache:
                     return self.file_cache[file_path]
                 for try_i in range(3):
@@ -200,9 +199,7 @@ class FileSummary:
             logger.warning(f"Error reading file {file_path}: {e}")
             return None
 
-    def _summarize_file(
-        self, file_path: str
-    ) -> str:
+    def _summarize_file(self, file_path: str) -> str:
         """
         Use large language model to generate a one-sentence summary of the file
 
@@ -288,7 +285,7 @@ class FileSummary:
         all_summaries = {p: self.file_cache.get(p, {}).get("summary", "") for p in self.file_cache}
         all_file_tree = self._generate_file_tree_recusive(self.analyze_dir)
         all_paths = [path for path, _ in all_file_tree]
-        all_paths = all_paths[:self.max_file_num]
+        all_paths = all_paths[: self.max_file_num]
 
         # If worker_num is 1, use the original single-thread approach
         if self.worker_num <= 1:
@@ -306,7 +303,7 @@ class FileSummary:
             with ThreadPoolExecutor(max_workers=self.worker_num) as executor:
                 # Submit all tasks
                 future_to_path = {executor.submit(self._summarize_file, path): path for path in task_list}
-                
+
                 # Process results as they complete
                 for future in tqdm.tqdm(as_completed(future_to_path), total=len(task_list)):
                     file_path = future_to_path[future]
@@ -317,7 +314,7 @@ class FileSummary:
                     except Exception as e:
                         logger.warning(f"Error processing file {file_path}: {e}")
                         all_summaries[file_path] = f"Error: {str(e)}"
-        
+
         self._save_cache()
         return all_summaries
 
@@ -372,7 +369,7 @@ class FileSummary:
                 new_tree = self._generate_file_tree_recusive(item_path, prefix + extension)
                 file_tree.extend(new_tree)
 
-        return file_tree[:self.max_file_num]
+        return file_tree[: self.max_file_num]
 
     def generate_file_tree_with_summaries(self) -> List[str]:
         """
