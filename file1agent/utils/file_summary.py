@@ -30,6 +30,7 @@ class FileSummary:
         analyze_dir: str = None,
         summary_cache_path: str = None,
         worker_num: int = 1,
+        max_file_num: int = 200,
         **kwargs,
     ):
         """
@@ -43,6 +44,7 @@ class FileSummary:
         self.analyze_dir = analyze_dir
         self.config = config
         self.worker_num = worker_num
+        self.max_file_num = max_file_num
 
         self.summary_cache_path = summary_cache_path or os.path.join(
             self.analyze_dir, ".f1a_cache", "file_summary_cache.json"
@@ -286,6 +288,7 @@ class FileSummary:
         all_summaries = {p: self.file_cache.get(p, {}).get("summary", "") for p in self.file_cache}
         all_file_tree = self._generate_file_tree_recusive(self.analyze_dir)
         all_paths = [path for path, _ in all_file_tree]
+        all_paths = all_paths[:self.max_file_num]
 
         # If worker_num is 1, use the original single-thread approach
         if self.worker_num <= 1:
@@ -350,6 +353,8 @@ class FileSummary:
         for i, item_path in enumerate(item_path_list):
             if not self.file_inclusion.is_included(item_path):
                 continue
+            if len(file_tree) >= self.max_file_num:
+                break
 
             is_last_item = i == len(items) - 1
 
@@ -367,7 +372,7 @@ class FileSummary:
                 new_tree = self._generate_file_tree_recusive(item_path, prefix + extension)
                 file_tree.extend(new_tree)
 
-        return file_tree
+        return file_tree[:self.max_file_num]
 
     def generate_file_tree_with_summaries(self) -> List[str]:
         """

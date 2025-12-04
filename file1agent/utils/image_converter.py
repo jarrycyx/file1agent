@@ -6,14 +6,62 @@ import os
 import base64
 import math
 import traceback
+import io
 from loguru import logger
 import fitz
+from PIL import Image
+
+
+
 
 
 class ImageConverter:
     """
     Utility class for converting PDF files to images.
     """
+    
+    @staticmethod
+    def compress_image(img_data, max_size=3000):
+        """
+        Compress image to ensure width and height do not exceed max_size
+        
+        Args:
+            img_data: Binary image data
+            max_size: Maximum width and height size, default is 3000
+            
+        Returns:
+            Compressed binary image data
+        """
+        try:
+            # Convert binary data to PIL Image object
+            img = Image.open(io.BytesIO(img_data))
+            
+            # Check if compression is needed
+            if img.width <= max_size and img.height <= max_size:
+                return img_data
+                
+            # Calculate scaling ratio
+            width_ratio = max_size / img.width
+            height_ratio = max_size / img.height
+            ratio = min(width_ratio, height_ratio)
+            
+            # Calculate new dimensions
+            new_width = int(img.width * ratio)
+            new_height = int(img.height * ratio)
+            
+            # Compress image
+            img_resized = img.resize((new_width, new_height), Image.LANCZOS)
+            logger.debug(f"Compressed image to {new_width}x{new_height}")
+            
+            # Convert compressed image to binary data
+            img_byte_arr = io.BytesIO()
+            img_resized.save(img_byte_arr, format='PNG')
+            img_byte_arr = img_byte_arr.getvalue()
+            
+            return img_byte_arr
+        except Exception as e:
+            logger.warning(f"Error compressing image: {e}")
+            return img_data
     
     @staticmethod
     def convert_pdf_to_merged_image(pdf_file: str):
@@ -79,8 +127,8 @@ class ImageConverter:
             total_width = cols * max_page_width
             total_height = rows * max_page_height
             
-            # Apply maximum resolution limit (4000 pixels)
-            max_resolution = 4000
+            # Apply maximum resolution limit (3000 pixels)
+            max_resolution = 3000
             if total_width > max_resolution or total_height > max_resolution:
                 # Calculate scaling factor to fit within max_resolution
                 scale_factor = min(max_resolution / total_width, max_resolution / total_height)
@@ -186,6 +234,8 @@ class ImageConverter:
                 mat = fitz.Matrix(2, 2)  # 2x zoom for better quality
                 pix = page.get_pixmap(matrix=mat)
                 img_data = pix.tobytes("png")
+                # Compress image
+                img_data = ImageConverter.compress_image(img_data)
                 img_base64 = base64.b64encode(img_data).decode("utf-8")
                 # Append page number to filename for identification
                 
@@ -242,6 +292,8 @@ class ImageConverter:
             else:
                 with open(fig, "rb") as f:
                     img_data = f.read()
+                    # Compress image
+                    img_data = ImageConverter.compress_image(img_data)
                     img_base64 = base64.b64encode(img_data).decode("utf-8")
                     fig_base64_list.append((fig, img_base64))
         return fig_base64_list

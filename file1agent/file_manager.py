@@ -23,6 +23,7 @@ from .utils.file_summary import FileSummary
 from .utils.file_inclusion import FileInclusion
 from .reranker.api_reranker import APIReranker
 
+
 class FileManager(File1AgentBase):
     """
     File management tool for detecting duplicate files and simulated data files.
@@ -39,6 +40,7 @@ class FileManager(File1AgentBase):
         log_level: str = "WARNING",
         log_path: str = None,
         worker_num: int = 1,
+        max_file_num: int = 200,
         **kwargs,
     ):
         """
@@ -53,6 +55,7 @@ class FileManager(File1AgentBase):
         super().__init__(config, log_level=log_level, log_path=log_path, **kwargs)
 
         self.worker_num = worker_num
+        self.max_file_num = max_file_num
 
         self.analyze_dir = analyze_dir
         self.backup_path = backup_path or os.path.join(analyze_dir, ".f1a_cache", "backup")
@@ -60,7 +63,12 @@ class FileManager(File1AgentBase):
             analyze_dir, ".f1a_cache", "file_relationships.json"
         )
         self.file_summary = FileSummary(
-            self.config, analyze_dir, summary_cache_path=summary_cache_path, worker_num=worker_num, **kwargs
+            self.config,
+            analyze_dir,
+            summary_cache_path=summary_cache_path,
+            worker_num=worker_num,
+            max_file_num=max_file_num,
+            **kwargs,
         )
         self.file_summary.generate_file_tree_with_summaries()
         self.file_inclusion = FileInclusion(self.config.inclusion)
@@ -461,14 +469,18 @@ Result: Yes
             all_files=all_files,
             inclusion_config=self.config.inclusion,
         )
-        
-        all_files_with_content = [(file_path, self.file_summary._read_file_content(file_path)) for file_path in all_files]
+
+        all_files_with_content = [
+            (file_path, self.file_summary._read_file_content(file_path)) for file_path in all_files
+        ]
 
         # Use multiprocessing to process files in parallel
         with multiprocessing.Pool(processes=num_process) as pool:
             results = list(
                 tqdm.tqdm(
-                    pool.imap(process_func, all_files_with_content), total=len(all_files), desc="Building file relationship graph"
+                    pool.imap(process_func, all_files_with_content),
+                    total=len(all_files),
+                    desc="Building file relationship graph",
                 )
             )
 
@@ -533,7 +545,10 @@ Result: Yes
 
     @staticmethod
     def _process_file_for_graph(
-        file_path_content_tuple: Tuple[str, str], analyze_dir: str, all_files: List[str], inclusion_config: FileInclusion
+        file_path_content_tuple: Tuple[str, str],
+        analyze_dir: str,
+        all_files: List[str],
+        inclusion_config: FileInclusion,
     ) -> Tuple[str, List[str]]:
         """
         Process a single file to find references to other files
@@ -548,9 +563,9 @@ Result: Yes
         """
         # Skip non-existent files
         file_inclusion = FileInclusion(inclusion_config)
-        
+
         file_path, file_content = file_path_content_tuple
-        
+
         if not os.path.exists(file_path):
             return (os.path.relpath(file_path, analyze_dir), [])
 
@@ -564,7 +579,6 @@ Result: Yes
             return (os.path.relpath(file_path, analyze_dir), [])
 
         logger.debug(f"Finding children files for: {file_path}")
-
 
         # Find references to other files
         referenced_files = []
@@ -620,7 +634,7 @@ Result: Yes
             # Get file summary if available
             abs_file_path = os.path.abspath(os.path.join(self.analyze_dir, file_path))
             file_summary = summaries.get(abs_file_path, "No summary available")
-            
+
             this_relation += f"\nFile: {file_path}"
             this_relation += f"\nSummary: {file_summary}"
 
@@ -646,7 +660,7 @@ Result: Yes
                     model=self.config.rerank.rerank_model,
                     api_key=self.config.rerank.rerank_api_key,
                     base_url=self.config.rerank.rerank_base_url,
-                    worker_num=self.worker_num
+                    worker_num=self.worker_num,
                 )
                 rel_result = reranker.rerank_to_limit(rel_result, question, max_token_cnt)
             else:
@@ -664,7 +678,7 @@ Result: Yes
                 rel_result = truncated
 
         result.extend(rel_result)
-        
+
         return "\n".join(result)
 
     def search_workspace_direct(self, max_token_cnt: int = 1000, question: str = "") -> str:
@@ -696,7 +710,7 @@ Result: Yes
                     model=self.config.rerank.rerank_model,
                     api_key=self.config.rerank.rerank_api_key,
                     base_url=self.config.rerank.rerank_base_url,
-                    worker_num=self.worker_num
+                    worker_num=self.worker_num,
                 )
                 result = reranker.rerank_to_limit(result, question, max_token_cnt)
             else:

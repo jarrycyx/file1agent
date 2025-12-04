@@ -33,7 +33,8 @@ def main():
     print(f"Loaded configuration from {config_path}")
     file_manager = FileManager(
         config=config,
-        analyze_dir=target_dir
+        analyze_dir=target_dir,
+        log_level="DEBUG",
     )
 
     # Test 1: Workspace Cleaning

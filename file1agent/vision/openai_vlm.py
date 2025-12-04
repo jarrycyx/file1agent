@@ -82,7 +82,7 @@ class OpenAIVLM(BaseVLM):
                     logger.info(f"Vision response: {response.replace('\n', ' ')}")
                     return response
                 except Exception as e:
-                    error_msg = f"Error when calling VLM: {e}"
+                    error_msg = f"Error when calling VLM: {e}"[:1000]
                     logger.warning(error_msg)
                     logger.warning("Retrying with different formatter...")
                     import time
