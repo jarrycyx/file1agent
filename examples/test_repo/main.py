@@ -62,6 +62,6 @@ plt.title('Q-Q Plot (Normality Test)')
 plt.grid(True, alpha=0.3)
 
 plt.tight_layout()
-plt.savefig('analysis_plots.png')
+plt.savefig('analysis_plots.jpg')
 print("Analysis plots have been saved to analysis_plots.png")
 plt.show()
