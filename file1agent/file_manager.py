@@ -285,7 +285,7 @@ Result: Yes
                 ):
                     other_files.append(path)
             other_summaries = [summaries[path] for path in other_files]
-            logger.info(
+            logger.debug(
                 f"Comparing {os.path.relpath(file_path, self.analyze_dir)} with {len(other_files)} other files in the same subdirectory"
             )
             logger.debug(
@@ -330,7 +330,7 @@ Result: Yes
                 med_score = np.median(all_rerank_scores)
                 above_05 = sum(1 for score in all_rerank_scores if score > 0.5)
                 above_08 = sum(1 for score in all_rerank_scores if score > 0.8)
-                logger.info(
+                logger.debug(
                     f"All rerank scores max: {max_score:.3f}, min: {min_score:.3f}, avg: {avg_score:.3f}, median: {med_score:.3f}, num_files: {len(all_rerank_scores)}, #>0.5: {above_05}, #>0.8: {above_08}"
                 )
 

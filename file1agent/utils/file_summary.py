@@ -171,7 +171,7 @@ class FileSummary:
                             base64_content = base64_list[0][1]
                             # 使用视觉模型进行分类和总结
                             prompt = "Please summarize in one sentence (no more than 500 characters) the main function and content of the following image:"
-                            logger.info(f"Summarize {file_path} with prompt: {prompt}")
+                            logger.debug(f"Summarize {file_path} with prompt: {prompt}")
                             vlm = OpenAIVLM(self.config.llm.vision)
                             summary = vlm.call_vlm(base64_content, prompt)
                             if summary:
@@ -240,7 +240,7 @@ class FileSummary:
                 )
                 summary = response.choices[0].message.content.strip()
 
-                logger.info(f"Summary for {file_path}: {summary}")
+                logger.debug(f"Summary for {file_path}: {summary}")
 
                 # Ensure summary does not exceed 500 characters
                 if len(summary) > 500:
