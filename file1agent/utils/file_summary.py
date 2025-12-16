@@ -161,7 +161,7 @@ class FileSummary:
                     return ""
 
                 if file_path in self.file_cache:
-                    return self.file_cache[file_path]
+                    return self.file_cache[file_path]["summary"]
                 for try_i in range(3):
                     try:
                         # 获取base64编码
