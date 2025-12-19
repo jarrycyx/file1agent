@@ -9,7 +9,6 @@ export no_proxy="localhost,127.0.0.1,.local"
 
 export OPENAI_API_KEY="0"
 export OPENAI_BASE_URL="http://127.0.0.1:8077/v1"
-# export OPENAI_API_KEY="sk-uewsuzpc332yhydw"
 # export OPENAI_BASE_URL="https://cloud.infini-ai.com/maas/v1/"
 # export MSWEA_COST_TRACKING='ignore_errors'
 export LITELLM_MODEL_REGISTRY_PATH="eval/models.json"
