@@ -4,6 +4,7 @@ import time
 import traceback
 from datetime import datetime
 from pathlib import Path
+from types import NoneType
 from typing import Dict, List, Optional, Tuple, Union
 from loguru import logger
 from openai import OpenAI
@@ -28,8 +29,8 @@ class FileSummary:
     def __init__(
         self,
         config: File1AgentConfig,
-        analyze_dir: str = None,
-        summary_cache_path: str = None,
+        analyze_dir: Optional[str] = None,
+        summary_cache_path: Optional[str] = None,
         worker_num: int = 1,
         max_file_num: int = 200,
         **kwargs,
@@ -197,7 +198,7 @@ class FileSummary:
                     return ""
         except Exception as e:
             logger.warning(f"Error reading file {file_path}: {e}")
-            return None
+            return ""
 
     def _summarize_file(self, file_path: str) -> str:
         """
@@ -275,7 +276,7 @@ class FileSummary:
             # TODO: Handle directory summary
             return ""
 
-    def get_all_summaries(self) -> Dict[str, str]:
+    def get_all_summaries(self) -> dict[str, str]:
         """
         Get all file summaries using multithreading
 
