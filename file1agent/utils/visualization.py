@@ -22,39 +22,42 @@ def visualize_graph(file_relationships: Dict[str, List[str]], all_files: List[st
     if not GRAPHVIZ_AVAILABLE:
         logger.error("graphviz is not available. Cannot visualize graph.")
         return
+    try:
+        # Create a directed graph with optimized layout
+        dot = graphviz.Digraph(
+            comment="File Relationship Graph",
+            graph_attr={
+                "rankdir": "LR",  # Left to right layout instead of top to bottom
+                "splines": "ortho",  # Use orthogonal lines for cleaner look
+                "nodesep": "0.8",  # Increase separation between nodes
+                "ranksep": "1.0",  # Increase separation between ranks
+                "fontname": "Arial",
+                "fontsize": "12",
+                "concentrate": "true",  # Merge parallel edges
+            },
+            node_attr={
+                "shape": "box",
+                "style": "rounded,filled",
+                "fillcolor": "lightblue",
+                "fontname": "Arial",
+                "fontsize": "10",
+            },
+            edge_attr={"fontname": "Arial", "fontsize": "9"},
+        )
 
-    # Create a directed graph with optimized layout
-    dot = graphviz.Digraph(
-        comment="File Relationship Graph",
-        graph_attr={
-            "rankdir": "LR",  # Left to right layout instead of top to bottom
-            "splines": "ortho",  # Use orthogonal lines for cleaner look
-            "nodesep": "0.8",  # Increase separation between nodes
-            "ranksep": "1.0",  # Increase separation between ranks
-            "fontname": "Arial",
-            "fontsize": "12",
-            "concentrate": "true",  # Merge parallel edges
-        },
-        node_attr={
-            "shape": "box",
-            "style": "rounded,filled",
-            "fillcolor": "lightblue",
-            "fontname": "Arial",
-            "fontsize": "10",
-        },
-        edge_attr={"fontname": "Arial", "fontsize": "9"},
-    )
+        # Then, add edges for file relationships
+        for file_path, referenced_files in file_relationships.items():
+            filename = os.path.basename(file_path)
+            dot.node(file_path, filename)
+            # Add edges to referenced files
+            for ref_file in referenced_files:
+                # Add an edge from the current file to the referenced file
+                dot.edge(file_path, ref_file)
 
-    # Then, add edges for file relationships
-    for file_path, referenced_files in file_relationships.items():
-        filename = os.path.basename(file_path)
-        dot.node(file_path, filename)
-        # Add edges to referenced files
-        for ref_file in referenced_files:
-            # Add an edge from the current file to the referenced file
-            dot.edge(file_path, ref_file)
+        # Save the graph
+        dot.render(save_fig_path, format="png", cleanup=True)
 
-    # Save the graph
-    dot.render(save_fig_path, format="png", cleanup=True)
-
-    logger.info(f"File relationship graph saved to {save_fig_path}.png")
+        logger.info(f"File relationship graph saved to {save_fig_path}.png")
+    except Exception as e:
+        logger.error(f"Error visualizing graph: {e}")
+        return
