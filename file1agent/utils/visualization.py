@@ -1,6 +1,9 @@
 import os
 import graphviz
 from loguru import logger
+
+logger = logger.bind(module="file1agent_visualization")
+
 from typing import Dict, List, Optional, Tuple, Set
 
 try:

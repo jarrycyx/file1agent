@@ -7,6 +7,9 @@ from pathlib import Path
 from types import NoneType
 from typing import Dict, List, Optional, Tuple, Union
 from loguru import logger
+
+logger = logger.bind(module="file1agent_file_summary")
+
 from openai import OpenAI
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import copy
@@ -183,13 +186,13 @@ class FileSummary:
 
             # Try to read as text file
             try:
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                with open(file_path, "r", encoding="utf-8") as f:
                     content = f.read(max_size)
                     return content
             except UnicodeDecodeError:
                 # If UTF-8 decoding fails, try other encodings
                 try:
-                    with open(file_path, "r", encoding="gbk", errors="ignore") as f:
+                    with open(file_path, "r", encoding="gbk") as f:
                         content = f.read(max_size)
                         return content
                 except UnicodeDecodeError:
@@ -215,7 +218,7 @@ class FileSummary:
                 # Read file content, ensuring correct handling
                 content = self._read_file_content(file_path)
                 if not content:
-                    return "Cannot read file content"
+                    return "Error: Cannot read file content"
 
                 # Check if this is a summary for an image or PDF file (already processed by vision model)
                 file_ext = os.path.splitext(file_path)[1].lower()
@@ -250,7 +253,7 @@ class FileSummary:
                 return summary.replace("\n", " ")
             except Exception as e:
                 logger.warning(f"Failed to summarize file {file_path}: {e}")
-        return f"Summary failed after {try_i} attempts"
+        return f"Error: Summary failed after {try_i} attempts"
 
     def get_file_summary(self, file_path: str) -> str:
         """
@@ -267,7 +270,10 @@ class FileSummary:
         if os.path.isfile(abs_path):
             if self._is_file_updated(abs_path) or len(this_file_summary) > 2000:
                 summary = self._summarize_file(abs_path)
-                self._update_cache(abs_path, summary)
+                if not summary.startswith("Error:"):
+                    self._update_cache(abs_path, summary)
+                else:
+                    logger.warning(f"Failed to summarize file {abs_path}: {summary}")
             else:
                 # Get summary from cache
                 summary = this_file_summary
@@ -289,32 +295,9 @@ class FileSummary:
         all_paths = all_paths[: self.max_file_num]
 
         # If worker_num is 1, use the original single-thread approach
-        if self.worker_num <= 1:
-            for file_path in all_paths:
-                if os.path.isfile(file_path):
-                    all_summaries[file_path] = self.get_file_summary(file_path)
-        else:
-            # Prepare task list
-            task_list = []
-            for path in all_paths:
-                if os.path.isfile(path) and self._is_file_updated(path):
-                    task_list.append(path)
-
-            # Use ThreadPoolExecutor for multithreading
-            with ThreadPoolExecutor(max_workers=self.worker_num) as executor:
-                # Submit all tasks
-                future_to_path = {executor.submit(self._summarize_file, path): path for path in task_list}
-
-                # Process results as they complete
-                for future in tqdm.tqdm(as_completed(future_to_path), total=len(task_list)):
-                    file_path = future_to_path[future]
-                    try:
-                        summary = future.result()
-                        self._update_cache(file_path, summary)
-                        all_summaries[file_path] = summary
-                    except Exception as e:
-                        logger.warning(f"Error processing file {file_path}: {e}")
-                        all_summaries[file_path] = f"Error: {str(e)}"
+        for file_path in all_paths:
+            if os.path.isfile(file_path):
+                all_summaries[file_path] = self.get_file_summary(file_path)
 
         self._save_cache()
         return all_summaries

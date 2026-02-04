@@ -3,21 +3,19 @@ import json
 from typing import Optional, Type, Dict, Any, Union, List
 from typing_extensions import Literal
 from loguru import logger
+
+logger = logger.bind(module="file1agent_api_reranker")
+
 import time
-from datetime import datetime
-import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
 from tqdm import tqdm
-
 import requests
 import traceback
 from copy import deepcopy
-
-from ..utils.token_cnt import HumanMessage, count_tokens_approximately
-
 import numpy as np
 
+from ..utils.token_cnt import HumanMessage, count_tokens_approximately
 from .base_reranker import BaseReranker
 
 

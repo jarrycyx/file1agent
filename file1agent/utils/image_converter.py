@@ -8,6 +8,9 @@ import math
 import traceback
 import io
 from loguru import logger
+
+logger = logger.bind(module="file1agent_image_converter")
+
 import fitz
 from PIL import Image
 

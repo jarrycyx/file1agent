@@ -14,6 +14,7 @@ import multiprocessing
 from functools import partial
 
 from loguru import logger
+logger = logger.bind(module="file1agent_file_manager")
 
 from .utils.base import File1AgentBase
 from .config import File1AgentConfig, ModelConfig
@@ -102,6 +103,10 @@ class FileManager(File1AgentBase):
             # Read file contents
             content1 = self.file_summary._read_file_content(file1_path)
             content2 = self.file_summary._read_file_content(file2_path)
+            
+            if not content1 or not content2:
+                logger.warning(f"Empty content for files {file1_path} and {file2_path}")
+                return False
 
             file1_name = os.path.basename(file1_path)
             file2_name = os.path.basename(file2_path)
